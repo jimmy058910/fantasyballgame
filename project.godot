@@ -14,6 +14,10 @@ config/name="FantasyBallGame"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[autoload]
+
+NameGenerator="*res://scripts/name_generator.gd"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
