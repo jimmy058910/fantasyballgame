@@ -1,0 +1,29 @@
+<svg width="120px" height="80px" viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+
+  <path d="M 10 40 
+           A 60 40 0 0 1 60 0 
+           A 60 40 0 0 1 110 40 
+           A 60 40 0 0 1 60 80 
+           A 60 40 0 0 1 10 40 Z"
+        fill="#FF8C00"  stroke="black" 
+        stroke-width="2" />
+
+  <path d="M 30 17 A 45 35 0 0 1 30 63" 
+        stroke="white" 
+        stroke-width="3" 
+        fill="none" />
+  <path d="M 90 17 A 45 35 0 0 0 90 63" 
+        stroke="white" 
+        stroke-width="3" 
+        fill="none" />
+
+  <g stroke="white" stroke-linecap="round">
+    <line x1="60" y1="20" x2="60" y2="60" stroke-width="4" />
+    
+    <line x1="54" y1="28" x2="66" y2="28" stroke-width="2.5" />
+    <line x1="54" y1="36" x2="66" y2="36" stroke-width="2.5" />
+    <line x1="54" y1="44" x2="66" y2="44" stroke-width="2.5" />
+    <line x1="54" y1="52" x2="66" y2="52" stroke-width="2.5" />
+  </g>
+
+</svg>

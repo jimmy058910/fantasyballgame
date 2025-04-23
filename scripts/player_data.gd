@@ -45,14 +45,15 @@ enum Race { GRYLL, HUMAN, SYLVAN, LUMINA, UMBRA } # Add all your planned races h
 # These will likely hold references to ItemData resources later.
 # For now, we can define them, maybe exporting temporarily as placeholders.
 @export_group("Equipment")
-@export var equipped_helmet # : ItemData # Add type hint later
-@export var equipped_chest # : ItemData
-@export var equipped_shoes # : ItemData
-@export var equipped_gloves # : ItemData
+@export var equipped_helmet = null # : ItemData # Add type hint later
+@export var equipped_chest = null # : ItemData
+@export var equipped_shoes = null # : ItemData
+@export var equipped_gloves = null # : ItemData
 
 # --- Abilities (Max 3) ---
 # This will hold references to AbilityData resources later.
 @export_group("Abilities")
+# This line is likely okay because 'Array' is a valid type provided.
 @export var learned_abilities: Array # [AbilityData] # Add type hint later
 
 # --- Career / Stats (Optional here, maybe separate object?) ---
