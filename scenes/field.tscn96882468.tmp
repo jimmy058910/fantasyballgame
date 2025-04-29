@@ -1,0 +1,169 @@
+[gd_scene load_steps=12 format=3 uid="uid://2me1e2llkrso"]
+
+[ext_resource type="PackedScene" uid="uid://k10e08wclv3t" path="res://scenes/player.tscn" id="1_6pmjc"]
+[ext_resource type="Script" uid="uid://ursq72vnd8ep" path="res://scenes/field.gd" id="1_7156t"]
+[ext_resource type="Script" uid="uid://dg01ek7sa7efc" path="res://scenes/ball.gd" id="2_lptdg"]
+[ext_resource type="Texture2D" uid="uid://3iohrl6pirdp" path="res://assets/ball.svg" id="2_ttalb"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ttalb"]
+size = Vector2(65, 64)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_lptdg"]
+size = Vector2(18, 1082)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_7156t"]
+size = Vector2(1936.5, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pn4dk"]
+size = Vector2(1934.5, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wnvii"]
+size = Vector2(16, 1108.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_6pmjc"]
+size = Vector2(64.625, 64.75)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_7156t"]
+radius = 11.4018
+
+[node name="Field" type="Node2D"]
+script = ExtResource("1_7156t")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+custom_minimum_size = Vector2(1920, 1080)
+offset_left = -960.0
+offset_top = -540.0
+offset_right = 960.0
+offset_bottom = 540.0
+color = Color(0.545098, 0.764706, 0.290196, 1)
+
+[node name="Player" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(-686, -115)
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player"]
+position = Vector2(-0.5, 0)
+shape = SubResource("RectangleShape2D_ttalb")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(0.55, 0.55)
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+position = Vector2(970, -2)
+shape = SubResource("RectangleShape2D_lptdg")
+
+[node name="StaticBody2D2" type="StaticBody2D" parent="."]
+position = Vector2(-273, -573)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D2"]
+position = Vector2(278.75, 23)
+shape = SubResource("RectangleShape2D_7156t")
+
+[node name="StaticBody2D3" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D3"]
+position = Vector2(8.75, 548)
+shape = SubResource("RectangleShape2D_pn4dk")
+
+[node name="StaticBody2D4" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D4"]
+position = Vector2(-970, -4.25)
+shape = SubResource("RectangleShape2D_wnvii")
+
+[node name="Player2" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(-535, -317)
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player2"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player3" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(-533, 355)
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player3"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player4" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(-693, 139)
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player4"]
+position = Vector2(0.25, 0.5)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player5" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(-752, -377)
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player5"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player6" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(-752, 397)
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player6"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player7" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(758, -409)
+team_id = 1
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player7"]
+position = Vector2(0.3125, 0.25)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player8" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(127, 0)
+team_id = 1
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player8"]
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player9" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(794, 415)
+team_id = 1
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player9"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player10" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(631, -221)
+team_id = 1
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player10"]
+position = Vector2(0, 0.375)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player11" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(633, 190)
+team_id = 1
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player11"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Player12" parent="." instance=ExtResource("1_6pmjc")]
+position = Vector2(782, -3)
+team_id = 1
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Player12"]
+position = Vector2(0.5, 1)
+shape = SubResource("RectangleShape2D_6pmjc")
+
+[node name="Ball" type="Node2D" parent="." groups=["ball"]]
+script = ExtResource("2_lptdg")
+
+[node name="Sprite2D" type="Sprite2D" parent="Ball" groups=["ball"]]
+scale = Vector2(0.175, 0.325)
+texture = ExtResource("2_ttalb")
+
+[node name="Area2D" type="Area2D" parent="Ball"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Ball/Area2D"]
+shape = SubResource("CircleShape2D_7156t")
+
+[connection signal="body_entered" from="Ball/Area2D" to="Ball" method="_on_area_2d_body_entered"]

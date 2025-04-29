@@ -1,17 +1,30 @@
-[gd_scene load_steps=4 format=3 uid="uid://k10e08wclv3t"]
+[gd_scene load_steps=5 format=3 uid="uid://d3ehlu0xuut27"]
 
-[ext_resource type="Texture2D" uid="uid://duflqtbn0k8t3" path="res://icon.svg" id="1_3vyb7"]
-[ext_resource type="Script" uid="uid://csroaox4agovb" path="res://scenes/player.gd" id="1_g2els"]
+[ext_resource type="Script" uid="uid://sssk0phxp21w" path="res://scenes/player.gd" id="1_g2els"]
+[ext_resource type="Texture2D" uid="uid://cf0rxi5wic2kb" path="res://assets/Placeholder.png" id="2_g2els"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_g2els"]
-size = Vector2(92, 89)
+[sub_resource type="CircleShape2D" id="CircleShape2D_qhqgy"]
+radius = 30.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_dqkch"]
+radius = 30.0
 
 [node name="Player" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 3
 script = ExtResource("1_g2els")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("1_3vyb7")
+texture = ExtResource("2_g2els")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Sprite2D"]
-position = Vector2(1, 1.5)
-shape = SubResource("RectangleShape2D_g2els")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_qhqgy")
+
+[node name="TackleArea" type="Area2D" parent="."]
+collision_layer = 4
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="TackleArea"]
+shape = SubResource("CircleShape2D_dqkch")
+
+[connection signal="body_entered" from="TackleArea" to="." method="_on_tackle_area_body_entered"]
