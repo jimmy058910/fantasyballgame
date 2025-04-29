@@ -1,10 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://d3ehlu0xuut27"]
+[gd_scene load_steps=6 format=3 uid="uid://d3ehlu0xuut27"]
 
 [ext_resource type="Script" uid="uid://sssk0phxp21w" path="res://scenes/player.gd" id="1_g2els"]
-[ext_resource type="Texture2D" uid="uid://cf0rxi5wic2kb" path="res://assets/Placeholder.png" id="2_g2els"]
+[ext_resource type="Texture2D" uid="uid://cx3oemep04dj5" path="res://assets/team0_player.png" id="2_dqkch"]
+[ext_resource type="Texture2D" uid="uid://cjusemtnxxmlw" path="res://assets/team1_player.png" id="3_qlg0r"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_qhqgy"]
-radius = 30.0
+radius = 20.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_dqkch"]
 radius = 30.0
@@ -13,9 +14,10 @@ radius = 30.0
 collision_layer = 2
 collision_mask = 3
 script = ExtResource("1_g2els")
+team0_texture = ExtResource("2_dqkch")
+team1_texture = ExtResource("3_qlg0r")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("2_g2els")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_qhqgy")

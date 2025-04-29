@@ -1,43 +1,35 @@
-# field.gd
+# field.gd - Complete version with scoring logic (April 29th)
 extends Node2D
 
-# --- ADD/EDIT THESE ARRAY DEFINITIONS BELOW ---
-# Define starting positions (!!! EDIT THESE Vector2 coordinates !!!)
-# These are just EXAMPLES assuming a 1920x1080 field centered at (0,0)
-# Adjust X and Y values based on your actual field size and desired formation.
-
-# Team 0 starts on left half (usually negative X if centered) - 6 positions
+# --- START POSITION ARRAYS ---
+# Define starting positions (!!! USER NEEDS TO EDIT THESE Vector2 COORDINATES !!!)
+# Example assumes field is 1920x1080 centered at (0,0)
 var team0_start_positions: Array[Vector2] = [
-    Vector2(-300, 0),    # Position 1 for Team 0
-    Vector2(-400, -200), # Position 2 for Team 0
-    Vector2(-400, 200),  # Position 3 for Team 0
-    Vector2(-700, -300), # Position 4 for Team 0
-    Vector2(-700, 0),    # Position 5 for Team 0
-    Vector2(-700, 300)   # Position 6 for Team 0
+    Vector2(-300, 0), Vector2(-400, -200), Vector2(-400, 200),
+    Vector2(-700, -300), Vector2(-700, 0), Vector2(-700, 300)
 ]
-# Team 1 starts on right half (usually positive X if centered) - 6 positions
 var team1_start_positions: Array[Vector2] = [
-    Vector2(300, 0),     # Position 1 for Team 1
-    Vector2(400, -200),  # Position 2 for Team 1
-    Vector2(400, 200),   # Position 3 for Team 1
-    Vector2(700, -300),  # Position 4 for Team 1
-    Vector2(700, 0),     # Position 5 for Team 1
-    Vector2(700, 300)    # Position 6 for Team 1
+    Vector2(300, 0), Vector2(400, -200), Vector2(400, 200),
+    Vector2(700, -300), Vector2(700, 0), Vector2(700, 300)
 ]
-# --- END OF ARRAY DEFINITIONS ---
+# --- END POSITION ARRAYS ---
+
 
 # Called when the script instance is ready
 func _ready():
-    randomize() # Keep this line for random numbers
+    randomize() # Initialize the random number generator
 
-# Function called when something enters Team 0's end zone
+
+# --- START SIGNAL HANDLERS AND RESET FUNCTION ---
+# Function called when something enters Team 0's end zone (Goal for Team 1)
 func _on_team_0_end_zone_body_entered(body):
-    # Check if it's a player node
+    # Check if it's a player node that entered
     if body.is_in_group("players"):
         var ball = get_tree().get_first_node_in_group("ball") # Find the ball node
-        if ball != null and ball.has_method("get"): # Check if ball exists and has methods
+        # Ensure ball exists and has the necessary property/method access
+        if ball != null and ball.has_method("get"):
             var possessor = ball.get("current_possessor")
-            # Check if the body entering IS the possessor AND is on Team 1 (scoring on Team 0's goal)
+            # Check if the body entering IS the current possessor AND is on Team 1
             if is_instance_valid(possessor) and possessor == body:
                 var scorer_team = body.get("team_id")
                 if scorer_team == 1:
@@ -45,13 +37,15 @@ func _on_team_0_end_zone_body_entered(body):
                     # TODO: Add score increment variables later
                     reset_play() # Reset positions after score
 
-# Function called when something enters Team 1's end zone
+# Function called when something enters Team 1's end zone (Goal for Team 0)
 func _on_team_1_end_zone_body_entered(body):
+    # Check if it's a player node that entered
     if body.is_in_group("players"):
         var ball = get_tree().get_first_node_in_group("ball") # Find the ball node
-        if ball != null and ball.has_method("get"): # Check if ball exists and has methods
+        # Ensure ball exists and has the necessary property/method access
+        if ball != null and ball.has_method("get"):
             var possessor = ball.get("current_possessor")
-            # Check if the body entering IS the possessor AND is on Team 0 (scoring on Team 1's goal)
+            # Check if the body entering IS the current possessor AND is on Team 0
             if is_instance_valid(possessor) and possessor == body:
                 var scorer_team = body.get("team_id")
                 if scorer_team == 0:
@@ -59,7 +53,7 @@ func _on_team_1_end_zone_body_entered(body):
                     # TODO: Add score increment variables later
                     reset_play() # Reset positions after score
 
-# Function to reset things after a score
+# Basic function to reset things after a score
 func reset_play():
     print("Resetting Play...")
     var ball = get_tree().get_first_node_in_group("ball")
@@ -67,30 +61,58 @@ func reset_play():
         # Make ball loose
         if ball.has_method("set_loose"):
             ball.set_loose()
-        else: # Fallback if set_loose doesn't exist
+        elif ball.has_method("set"): # Fallback if set_loose method missing
             ball.set("current_possessor", null)
-        # Reset ball position (e.g., center field - adjust coords if needed)
-        var screen_size = get_viewport_rect().size
-        ball.global_position = screen_size / 2.0
+
+        # Reset ball position to center of the field (adjust if your field isn't centered at 0,0)
+        ball.global_position = Vector2.ZERO
 
     # Reset players
     var players = get_tree().get_nodes_in_group("players")
     var team0_idx = 0
     var team1_idx = 0
     for player in players:
+        # Ensure player node is valid and has expected methods/properties before accessing
+        if not is_instance_valid(player) or not player.has_method("get") or not player.has_method("set"):
+            printerr("Invalid player node found during reset: ", player)
+            continue # Skip this invalid player
+
+        var player_team_id = player.get("team_id")
+
         # Reset to defined starting positions
-        if player.has_method("get") and player.get("team_id") == 0:
+        if player_team_id == 0:
             if team0_idx < team0_start_positions.size():
                 player.global_position = team0_start_positions[team0_idx]
+            else: # Fallback if not enough positions defined
+                player.global_position = Vector2(-200, randi_range(-200, 200))
+                printerr("Not enough start positions defined for Team 0 player: ", player.name)
             team0_idx += 1
-        elif player.has_method("get"): # Assume Team 1 if not Team 0
+        elif player_team_id == 1: # Explicitly check for team 1
              if team1_idx < team1_start_positions.size():
                 player.global_position = team1_start_positions[team1_idx]
+             else: # Fallback
+                 player.global_position = Vector2(200, randi_range(-200, 200))
+                 printerr("Not enough start positions defined for Team 1 player: ", player.name)
              team1_idx += 1
+        # else: # Optional: Handle players with unexpected team IDs?
+        #    printerr("Player with unexpected team ID found during reset: ", player.name, " Team: ", player_team_id)
 
-        # Reset stamina, stun, and velocity (if methods/properties exist)
-        if player.has_method("set"):
-            if "max_stamina" in player: # Check if property exists
-                player.set("current_stamina", player.get("max_stamina"))
+
+        # Reset stamina, stun, and velocity safely
+        # Check if property exists before getting/setting, using 'in' operator
+        if "max_stamina" in player and "current_stamina" in player: 
+            player.set("current_stamina", player.get("max_stamina"))
+        else:
+            printerr("Player missing stamina properties: ", player.name)
+
+        if "stun_timer" in player:
             player.set("stun_timer", 0.0)
+        else:
+            printerr("Player missing stun_timer property: ", player.name)
+
+        if "velocity" in player:
             player.set("velocity", Vector2.ZERO) # Crucial to stop movement
+        else:
+            printerr("Player missing velocity property: ", player.name)
+
+# --- End of field.gd ---
