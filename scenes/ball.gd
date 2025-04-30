@@ -1,139 +1,209 @@
-extends Node2D # Or Sprite2D if your root is the sprite
+# ball.gd - Includes synchronization calls to player.gd
+extends RigidBody2D
 
-# --- Define Field Boundaries and Bounce ---
+# --- Export Variables ---
+# Gameplay parameters (can be tweaked in Inspector)
+@export var pass_speed: float = 650.0      # Speed applied as velocity for a pass
+@export var max_pass_range: float = 450.0  # Used by player to calculate target before calling initiate_pass
+@export var bounce_impulse_strength : float = 100.0 # Force applied on tackle bounce
+@export var follow_offset := Vector2(0, -25) # Offset from player center when held
+
+# Define field boundaries (!!! USER NEEDS TO ADJUST THESE VALUES !!!)
 # Assumes field origin (0,0) is the center
-@export var field_half_width : float = 960.0  # Half of your field's total width
-@export var field_half_height : float = 540.0 # Half of your field's total height
-@export var bounce_radius : float = 60.0    # Max distance ball bounces on tackle (pixels)
-@export var bounce_margin : float = 15.0     # Keep ball away from edge after bounce
-# --- End Definitions ---
+@export var field_half_width : float = 960.0
+@export var field_half_height : float = 540.0
+@export var field_margin : float = 15.0
 
-# --- Pass State Variables ---
-var is_passing: bool = false       # Is the ball currently mid-pass?
-var pass_velocity: Vector2 = Vector2.ZERO # Speed and direction of the current pass
-var pass_target_pos: Vector2 = Vector2.ZERO # Where the pass is aimed (might be clamped by range)
-@export var pass_speed: float = 500.0    # Speed of the pass (pixels/sec) - Should be faster than players!
-@export var max_pass_range: float = 325.0  # Max distance a pass can travel
-# --- End Pass State Variables ---
+# --- Internal State ---
+var current_possessor: Node2D = null # Reference to the player holding the ball
 
-var current_possessor: Node2D = null # Start with no one possessing
-var follow_offset = Vector2(0, -20) # Small offset so ball isn't exactly on player center (adjust as needed)
+# --- Node References ---
+# IMPORTANT: Assumes the pickup Area2D child node in ball.tscn is named exactly "PickupArea"
+@onready var pickup_area: Area2D = $PickupArea
 
-# Inside ball.gd
+# --- Initialization ---
+func _ready():
+    # Ball starts loose, physics active
+    freeze = false
+    # Ensure the pickup area node exists and monitoring is enabled initially
+    if pickup_area != null:
+        pickup_area.monitoring = true
+        # Ensure signal is connected (MUST also be connected in the Editor for reliability)
+        # Check if connection ALREADY exists before attempting to connect
+        var signal_name = "body_entered"
+        var callable_to_check = Callable(self, "_on_pickup_area_body_entered")
+        var connections = pickup_area.get_signal_connection_list(signal_name)
+        var already_connected = false
+        for connection in connections:
+            if connection.callable == callable_to_check:
+                already_connected = true
+                break
 
-func _on_area_2d_body_entered(body):
-    # Check if ball is free AND the body entering is a Player
-    if current_possessor == null and body.is_in_group("players"):
-        current_possessor = body
-        # --- ADD THIS LINE ---
-        print("BALL SCRIPT: Picked up by ", body.name, ". Possessor is now: ", current_possessor)
-        # --- END ADDED LINE ---
-
-# Modified physics process to handle passing
-func _physics_process(_delta):
-    if is_passing:
-        # --- Ball is Mid-Pass ---
-        # Move the ball along the pass trajectory
-        global_position += pass_velocity * _delta
-
-        # Check if pass reached the target vicinity
-        var threshold : float = 20.0 # How close to target counts as arrived
-        if global_position.distance_squared_to(pass_target_pos) < (threshold * threshold):
-            print("BALL SCRIPT: Pass reached vicinity of target.")
-            is_passing = false
-            pass_velocity = Vector2.ZERO
-            # Ball stops here, becomes 'loose' and available for pickup via its Area2D
-
-    elif current_possessor != null:
-        # --- Ball is Being Held ---
-        if is_instance_valid(current_possessor):
-            # Standard logic to follow the possessor
-            global_position = current_possessor.global_position + follow_offset
+        if not already_connected:
+            var error_code = pickup_area.connect(signal_name, callable_to_check)
+            if error_code != OK:
+                printerr("Ball: Failed to connect pickup area signal in _ready! Error code: ", error_code)
+            else:
+                print_debug("Ball: PickupArea signal connected via script.")
         else:
-            # Possessor somehow disappeared (e.g., deleted - unlikely in sim)
-            current_possessor = null
-            is_passing = false # Ensure passing flag is off
-            pass_velocity = Vector2.ZERO
-            print("BALL SCRIPT: Possessor became invalid, ball is free (no bounce)")
-
-    # else:
-        # --- Ball is Loose AND Not Passing ---
-        # Ball just sits still for now.
-        # Later, you could add friction or bouncing off walls here.
-        pass
-
-# Call this function when a tackle is successful
-# Inside ball.gd
-
-# Call this function when a tackle is successful
-func set_loose():
-    if current_possessor != null:
-        print("BALL SCRIPT: ", current_possessor.name, " lost the ball due to tackle! Possessor set to null.")
-        var last_carrier_pos = current_possessor.global_position # Store where carrier was
-        current_possessor = null # Ball is now loose
-
-        # --- Add Bounce Logic ---
-        # Calculate a random direction
-        var random_dir = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0))
-        if random_dir.length_squared() > 0: # Avoid zero vector
-            random_dir = random_dir.normalized()
-        else:
-            random_dir = Vector2.RIGHT # Default fallback
-
-        # Calculate a random distance within the bounce radius (but not zero)
-        var random_dist = randf_range(bounce_radius * 0.2, bounce_radius) # Bounce at least 20% of radius
-
-        # Calculate the potential new position based on where the carrier was
-        var bounce_offset = random_dir * random_dist
-        var new_pos = last_carrier_pos + bounce_offset # Apply bounce from carrier's last spot
-
-        # Clamp position to stay within field boundaries (minus a margin)
-        new_pos.x = clamp(new_pos.x, -field_half_width + bounce_margin, field_half_width - bounce_margin)
-        new_pos.y = clamp(new_pos.y, -field_half_height + bounce_margin, field_half_height - bounce_margin)
-
-        # Set the ball's new position
-        global_position = new_pos
-        print("BALL SCRIPT: Ball bounced to ", global_position) # Debug new position
-        # --- End Bounce Logic ---
+            print_debug("Ball: PickupArea signal already connected (likely via editor).")
 
     else:
-         # Optional: Handle case where set_loose is called but no one had the ball?
-         print("BALL SCRIPT: set_loose called but no possessor?")
-         pass
+        printerr("Ball Error: Cannot find child node named 'PickupArea'!")
 
-# Make sure your _physics_process and _on_area_2d_body_entered functions are still below
 
-# Call this function FROM the player script to start a pass
-func initiate_pass(target_destination: Vector2):
-    if current_possessor != null: # Must have possession to pass
+# --- Physics Update ---
+# Handles freezing/unfreezing and setting position when held
+func _physics_process(_delta):
+    if current_possessor != null:
+        # --- Ball is HELD ---
+        if is_instance_valid(current_possessor):
+            # If not already frozen, request freeze and stop physics movement/rotation
+            if freeze == false:
+                 set_deferred("freeze", true) # Use deferred to safely change physics state
+                 linear_velocity = Vector2.ZERO # Stop residual movement when freezing
+                 angular_velocity = 0.0      # Stop residual spin when freezing
+            # Manually set position to follow possessor precisely
+            global_position = current_possessor.global_position + follow_offset
+        else:
+            # Possessor became invalid (e.g., deleted?), make ball loose
+            print("BALL SCRIPT: Possessor became invalid while holding, setting loose.")
+            # Possessor is already invalid, so no need to call lose_ball() on them
+            set_loose() # Use set_loose to handle unfreeze, bounce, and enabling monitoring
+    else:
+        # --- Ball is LOOSE ---
+        # If it was previously frozen (e.g., just became loose), request unfreeze
+        if freeze == true:
+            set_deferred("freeze", false) # Use deferred to safely change physics state
+            # Note: set_loose or initiate_pass should have already re-enabled monitoring
+
+        # Physics engine handles movement when not frozen
+        # Check if velocity is very low (ball has settled) and ensure pickup monitoring is on
+        var stop_threshold_sq = 5.0 * 5.0 # Squared speed below which ball is considered stopped
+        if not freeze and linear_velocity.length_squared() < stop_threshold_sq and abs(angular_velocity) < 0.1:
+            # Ball is loose and almost stopped
+            linear_velocity = Vector2.ZERO # Ensure it's fully stopped
+            angular_velocity = 0.0
+            # Ensure monitoring is on when ball is settled and loose
+            if pickup_area != null and pickup_area.monitoring == false:
+                pickup_area.monitoring = true
+                print("BALL SCRIPT: Ball stopped/settled - PickupArea monitoring ON")
+        # Let physics engine do its work when loose
+
+
+# --- Signal Handler for Pickup ---
+# CONNECT THIS in the editor: PickupArea -> body_entered -> Ball -> _on_pickup_area_body_entered
+func _on_pickup_area_body_entered(body):
+    # Check if ball is currently loose (NOT frozen) AND pickup monitoring is ON
+    # Also ensure the body entering is a player and isn't knocked down
+    if current_possessor == null and not freeze and pickup_area.monitoring \
+       and body.is_in_group("players") and not body.get_is_knocked_down():
+
+        print("BALL AREA DEBUG: Pickup conditions met for ", body.name)
+        current_possessor = body
+
+        # *** SYNC CHANGE: Tell player script it has the ball ***
+        if body.has_method("pickup_ball"):
+            body.pickup_ball()
+        else:
+            printerr("Ball Error: Player %s missing pickup_ball() method!" % body.name)
+
+        set_deferred("freeze", true) # Use deferred set
+        linear_velocity = Vector2.ZERO # Stop physics movement AFTER freeze takes effect
+        angular_velocity = 0.0
+        # Snap position right away
+        global_position = current_possessor.global_position + follow_offset
+        print("BALL SCRIPT: Picked up by ", body.name, ". Possessor is now: ", current_possessor)
+
+
+# --- Function to Make Ball Loose (e.g., after tackle) ---
+# Accepts optional velocity vector from the player losing the ball/tackler for bounce direction
+func set_loose(bounce_dir_velocity: Vector2 = Vector2.ZERO):
+    var print_prefix = "BALL SCRIPT: set_loose(): "
+
+    # *** SYNC CHANGE: Tell the player script it lost the ball ***
+    if is_instance_valid(current_possessor): # Check if possessor is valid before calling
+         print(print_prefix, current_possessor.name, " lost the ball! Telling player.")
+         if current_possessor.has_method("lose_ball"):
+             current_possessor.lose_ball()
+         else:
+              printerr("Ball Error: Player %s missing lose_ball() method!" % current_possessor.name)
+
+    current_possessor = null # Set possessor to null AFTER telling them
+    set_deferred("freeze", false) # Ensure physics is active
+
+    # Ensure pickup monitoring is enabled when ball becomes loose
+    if pickup_area != null:
+        pickup_area.monitoring = true
+        # print(print_prefix, "PickupArea monitoring ON.") # Optional debug
+
+    # Apply bounce impulse based on passed velocity or random
+    var impulse_dir = Vector2.RIGHT # Default
+    if bounce_dir_velocity.length_squared() > 1.0:
+        # Bounce away from the direction the tackler/loser was moving
+        # Using the negative of the provided velocity vector as the impulse direction
+        impulse_dir = bounce_dir_velocity.normalized() * -1.0
+    else:
+        # Random bounce if no velocity provided or it's zero
+         impulse_dir = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized()
+         # Ensure we don't get a zero vector if randf happens to hit (0,0)
+         if impulse_dir == Vector2.ZERO: impulse_dir = Vector2.RIGHT
+
+    apply_central_impulse(impulse_dir * bounce_impulse_strength)
+    print(print_prefix, "Applied bounce impulse in direction: ", impulse_dir)
+
+
+# --- Function to Initiate a Pass ---
+# Call this FROM the player script, passing 'self' as the passer
+func initiate_pass(passer: Node, target_destination: Vector2):
+    # Check if the node attempting the pass is actually the current possessor
+    if is_instance_valid(current_possessor) and current_possessor == passer:
         print("BALL SCRIPT: ", current_possessor.name, " initiates pass towards ", target_destination)
-        var start_pos = global_position # Where the pass starts from
+        var start_pos = global_position
 
-        current_possessor = null # Ball becomes 'loose' immediately (no longer follows player)
-        is_passing = true       # Set the passing state flag
+        # *** SYNC CHANGE: Tell the player script it lost the ball ***
+        if is_instance_valid(current_possessor): # Check again just before call
+            if current_possessor.has_method("lose_ball"):
+                current_possessor.lose_ball()
+            else:
+                 printerr("Ball Error: Player %s missing lose_ball() method!" % current_possessor.name)
 
-        # Calculate direction and potentially clamp distance based on max_pass_range
+        current_possessor = null # Set possessor to null AFTER telling them
+        set_deferred("freeze", false) # Ensure physics is active for pass
+
+        # --- Disable pickup monitoring DURING pass ---
+        if pickup_area != null:
+            pickup_area.monitoring = false
+            print("BALL SCRIPT: initiate_pass() - PickupArea monitoring OFF")
+        # ---
+
+        # Calculate final target pos, clamping for range and field boundaries
         var direction_to_target = (target_destination - start_pos)
-        var distance_to_target_sq = direction_to_target.length_squared()
         var max_range_sq = max_pass_range * max_pass_range
-
-        if distance_to_target_sq > max_range_sq:
-            # Target is too far, calculate position at max range
-            pass_target_pos = start_pos + direction_to_target.normalized() * max_pass_range
-            print("BALL SCRIPT: Pass target out of range, aiming for max range point.")
+        var final_target_pos : Vector2
+        if direction_to_target.length_squared() > max_range_sq:
+            final_target_pos = start_pos + direction_to_target.normalized() * max_pass_range
         else:
-            # Target is within range
-            pass_target_pos = target_destination
+            final_target_pos = target_destination
+        final_target_pos.x = clamp(final_target_pos.x, -field_half_width + field_margin, field_half_width - field_margin)
+        final_target_pos.y = clamp(final_target_pos.y, -field_half_height + field_margin, field_half_height - field_margin)
 
-        # Calculate velocity needed to reach the (potentially clamped) target
-        # Avoid division by zero if start/end points are too close
-        var vector_to_target = pass_target_pos - start_pos
-        if vector_to_target.length_squared() > 1.0: # Check if target is meaningfully different
-            pass_velocity = vector_to_target.normalized() * pass_speed
+        print("BALL SCRIPT: Passing towards (clamped): ", final_target_pos)
+
+        # Apply velocity
+        var vector_to_target = final_target_pos - start_pos
+        if vector_to_target.length_squared() > 1.0: # Check length squared > 1 to avoid normalizing zero vector
+              linear_velocity = vector_to_target.normalized() * pass_speed
         else:
-            # Target is basically current position, treat as failed pass/drop
-            print("BALL SCRIPT: Pass target too close, dropping ball.")
-            is_passing = false
-            pass_velocity = Vector2.ZERO
-            # No need to call set_loose() as possessor is already null
-            # Ball will just sit here until picked up again
+              # Target too close, just drop it
+              print("BALL SCRIPT: Pass target too close after clamping, dropping ball.")
+              linear_velocity = Vector2.ZERO
+              # Ball is loose, ensure monitoring is back on if pass fails instantly
+              if pickup_area != null:
+                  pickup_area.monitoring = true
+                  print("BALL SCRIPT: Pass failed - PickupArea monitoring ON")
+
+    elif not is_instance_valid(current_possessor):
+         printerr("Initiate pass called by ", passer.name, " but ball has no valid possessor!")
+    elif current_possessor != passer:
+         printerr("Initiate pass called by ", passer.name, " but ", current_possessor.name, " actually has the ball!")

@@ -1,24 +1,20 @@
-[gd_scene load_steps=12 format=3 uid="uid://2me1e2llkrso"]
+[gd_scene load_steps=10 format=3 uid="uid://2me1e2llkrso"]
 
 [ext_resource type="Script" uid="uid://ursq72vnd8ep" path="res://scenes/field.gd" id="1_7156t"]
-[ext_resource type="Script" uid="uid://dg01ek7sa7efc" path="res://scenes/ball.gd" id="2_lptdg"]
-[ext_resource type="Texture2D" uid="uid://3iohrl6pirdp" path="res://assets/ball.svg" id="2_ttalb"]
+[ext_resource type="PackedScene" uid="uid://y3koajytiikc" path="res://scenes/ball.tscn" id="2_lptdg"]
 [ext_resource type="PackedScene" uid="uid://d3ehlu0xuut27" path="res://scenes/player.tscn" id="4_7156t"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_lptdg"]
-size = Vector2(18, 1082)
+size = Vector2(40, 1160)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_7156t"]
-size = Vector2(1936.5, 20)
+size = Vector2(2000, 40)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pn4dk"]
-size = Vector2(1934.5, 20)
+size = Vector2(2000, 40)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wnvii"]
-size = Vector2(16, 1108.5)
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_7156t"]
-radius = 11.4018
+size = Vector2(40, 1160)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_tcubs"]
 size = Vector2(135, 720)
@@ -41,43 +37,36 @@ color = Color(0.545098, 0.764706, 0.290196, 1)
 [node name="Camera2D" type="Camera2D" parent="."]
 zoom = Vector2(0.55, 0.55)
 
-[node name="StaticBody2D" type="StaticBody2D" parent="."]
+[node name="EastWall" type="StaticBody2D" parent="."]
+collision_mask = 8
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
-position = Vector2(970, -2)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EastWall"]
+position = Vector2(980, 0)
 shape = SubResource("RectangleShape2D_lptdg")
 
-[node name="StaticBody2D2" type="StaticBody2D" parent="."]
+[node name="NorthWall" type="StaticBody2D" parent="."]
 position = Vector2(-273, -573)
+collision_mask = 8
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D2"]
-position = Vector2(278.75, 23)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="NorthWall"]
+position = Vector2(273, 13)
 shape = SubResource("RectangleShape2D_7156t")
 
-[node name="StaticBody2D3" type="StaticBody2D" parent="."]
+[node name="SouthWall" type="StaticBody2D" parent="."]
+collision_mask = 8
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D3"]
-position = Vector2(8.75, 548)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SouthWall"]
+position = Vector2(0, 560)
 shape = SubResource("RectangleShape2D_pn4dk")
 
-[node name="StaticBody2D4" type="StaticBody2D" parent="."]
+[node name="WestWall" type="StaticBody2D" parent="."]
+collision_mask = 8
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D4"]
-position = Vector2(-970, -4.25)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WestWall"]
+position = Vector2(-980, 0)
 shape = SubResource("RectangleShape2D_wnvii")
 
-[node name="Ball" type="Node2D" parent="." groups=["ball"]]
-script = ExtResource("2_lptdg")
-
-[node name="Sprite2D" type="Sprite2D" parent="Ball" groups=["ball"]]
-scale = Vector2(0.175, 0.325)
-texture = ExtResource("2_ttalb")
-
-[node name="Area2D" type="Area2D" parent="Ball"]
-collision_mask = 2
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Ball/Area2D"]
-shape = SubResource("CircleShape2D_7156t")
+[node name="Ball" parent="." instance=ExtResource("2_lptdg")]
 
 [node name="Team0_EndZone" type="Area2D" parent="."]
 collision_layer = 8
@@ -153,6 +142,5 @@ team_id = 1
 position = Vector2(524, -234)
 team_id = 1
 
-[connection signal="body_entered" from="Ball/Area2D" to="Ball" method="_on_area_2d_body_entered"]
 [connection signal="body_entered" from="Team0_EndZone" to="." method="_on_team_0_end_zone_body_entered"]
 [connection signal="body_entered" from="Team1_EndZone" to="." method="_on_team_1_end_zone_body_entered"]

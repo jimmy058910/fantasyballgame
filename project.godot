@@ -13,11 +13,14 @@ config_version=5
 config/name="FantasyBallGame"
 run/main_scene="uid://2me1e2llkrso"
 config/features=PackedStringArray("4.4", "GL Compatibility")
-config/icon="res://icon.svg"
 
 [autoload]
 
 NameGenerator="*res://scripts/name_generator.gd"
+
+[layer_names]
+
+2d_physics/layer_4="Ball"
 
 [rendering]
 
