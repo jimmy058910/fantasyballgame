@@ -100,58 +100,113 @@ offset_right = 817.0
 offset_bottom = 360.0
 color = Color(0.765574, 0.202168, 0.214314, 0.54902)
 
-[node name="Player1" parent="." instance=ExtResource("4_7156t")]
+[node name="Player" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-287, 99)
+team_id = null
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player2" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-293, -89)
-player_name = "Player2"
+team_id = null
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player3" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-443, -189)
-player_name = "Player3"
+team_id = null
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player4" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-447, 4)
-player_name = "Player4"
+team_id = null
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player5" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-443, 199)
-player_name = "Player5"
+team_id = null
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player6" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-612, -2)
-player_name = "Player6"
+team_id = null
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player7" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(70, -76)
 team_id = 1
-player_name = "Player7"
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player8" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(146, 65)
 team_id = 1
-player_name = "Player8"
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player9" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(245, -426)
 team_id = 1
-player_name = "Player9"
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player10" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(239, 392)
 team_id = 1
-player_name = "Player10"
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player11" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(516, 261)
 team_id = 1
-player_name = "Player11"
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [node name="Player12" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(524, -234)
 team_id = 1
-player_name = "Player12"
+player_name = null
+base_speed = null
+max_stamina = null
+agility = null
+tackle_power = null
 
 [connection signal="body_entered" from="Team0_EndZone" to="." method="_on_team_0_end_zone_body_entered"]
 [connection signal="body_entered" from="Team1_EndZone" to="." method="_on_team_1_end_zone_body_entered"]
