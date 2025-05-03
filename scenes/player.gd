@@ -320,3 +320,23 @@ func get_player_name() -> String:
 func get_is_knocked_down() -> bool:
     # Getter function to safely check the state variable from other scripts
     return is_knocked_down
+    
+# Add this function to player.gd (if not already present)
+
+func reset_state():
+    print_debug("Resetting state for %s" % player_name)
+    # Reset state variables
+    is_knocked_down = false
+    knockdown_timer = 0.0
+    has_ball = false # Ensure player knows they don't have ball
+    can_pass_timer = 0.0 # Reset pass cooldown
+
+    # Reset Stamina
+    current_stamina = max_stamina
+
+    # Ensure collision shape is enabled (if it exists and was disabled)
+    if collision_shape and collision_shape.disabled:
+        collision_shape.set_deferred("disabled", false)
+
+    # Reset velocity just in case
+    velocity = Vector2.ZERO

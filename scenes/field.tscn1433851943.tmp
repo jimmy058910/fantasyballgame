@@ -156,13 +156,9 @@ player_name = "Player12"
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
 [node name="ScoreLabel" type="Label" parent="CanvasLayer"]
-top_level = true
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
 offset_left = -98.0
+offset_top = -589.0
 offset_right = 98.0
-offset_bottom = 55.0
-grow_horizontal = 2
-theme_override_font_sizes/font_size = 28
+offset_bottom = -534.0
+theme_override_font_sizes/font_size = 40
 text = "Score 0 - 0"
