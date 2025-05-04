@@ -101,22 +101,22 @@ offset_bottom = 360.0
 color = Color(0.765574, 0.202168, 0.214314, 0.54902)
 
 [node name="Player1" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(-287, 99)
+position = Vector2(-227, 105)
 
 [node name="Player2" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(-293, -89)
+position = Vector2(-222, -128)
 player_name = "Player2"
 
 [node name="Player3" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(-443, -189)
+position = Vector2(-409, -264)
 player_name = "Player3"
 
 [node name="Player4" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(-447, 4)
+position = Vector2(-479, -2)
 player_name = "Player4"
 
 [node name="Player5" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(-443, 199)
+position = Vector2(-422, 280)
 player_name = "Player5"
 
 [node name="Player6" parent="." instance=ExtResource("4_7156t")]
@@ -124,12 +124,12 @@ position = Vector2(-612, -2)
 player_name = "Player6"
 
 [node name="Player7" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(70, -76)
+position = Vector2(53, -87)
 team_id = 1
 player_name = "Player7"
 
 [node name="Player8" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(146, 65)
+position = Vector2(165, 41)
 team_id = 1
 player_name = "Player8"
 
@@ -139,12 +139,12 @@ team_id = 1
 player_name = "Player9"
 
 [node name="Player10" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(239, 392)
+position = Vector2(243, 439)
 team_id = 1
 player_name = "Player10"
 
 [node name="Player11" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(516, 261)
+position = Vector2(507, 205)
 team_id = 1
 player_name = "Player11"
 

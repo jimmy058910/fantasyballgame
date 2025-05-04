@@ -8,6 +8,7 @@ extends CharacterBody2D
 @export var max_stamina: float = 100.0
 @export var agility: int = 5 # Used for tackle evasion/contests
 @export var tackle_power: int = 5 # Used for tackle contests
+@export var throwing: int = 15 # 1-40 scale (Example default)
 # Add other stats as needed (Throwing, Catching, Kicking, Awareness, etc.)
 
 # Visuals

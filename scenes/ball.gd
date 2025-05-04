@@ -7,6 +7,15 @@ extends RigidBody2D
 @export var bounce_impulse_strength : float = 100.0 # Force applied on tackle bounce
 @export var follow_offset := Vector2(0, -25) # Offset from player center when held
 
+# --- Constants for Stat-Based Passing ---
+const BASE_PASS_SPEED: float = 300.0      # Speed of a pass with minimum (1) throwing stat
+const MAX_PASS_SPEED: float = 1000.0       # Maximum possible pass speed (at max throwing stat)
+const MAX_THROWING_STAT: int = 40         # The maximum value for the throwing stat (used for scaling)
+
+# Inaccuracy Constants (Radians) - PI/4 = 45 degrees, PI/8 = 22.5 degrees etc.
+const BASE_INACCURACY_ANGLE: float = PI / 6.0 # Max deviation (30 deg) for minimum (1) throwing stat
+const MIN_INACCURACY_ANGLE: float = PI / 64.0 # Min deviation (~3 deg) for maximum (40) throwing stat
+
 # Define field boundaries (Adjust if needed)
 @export var field_half_width : float = 960.0
 @export var field_half_height : float = 540.0
@@ -175,79 +184,98 @@ func set_loose(bounce_dir_velocity: Vector2 = Vector2.ZERO): # Allow passing vel
 
 
 # --- Function to Initiate a Pass ---
+# In ball.gd
+
+# --- Function to Initiate a Pass ---
+# Incorporates passer's Throwing stat for speed and accuracy
 func initiate_pass(passer: Node, target_destination: Vector2):
-    if is_instance_valid(current_possessor) and current_possessor == passer:
-        print("BALL SCRIPT: ", current_possessor.name, " initiates pass towards ", target_destination)
-        var start_pos = global_position
+    # --- Basic validity checks ---
+    if not is_instance_valid(passer) or not passer.has_method("get_player_name"):
+        printerr("Initiate pass called with invalid passer node!")
+        return
+    if not is_instance_valid(current_possessor) or current_possessor != passer:
+        printerr("Initiate pass called by %s but %s has the ball (or ball is loose)!" % [passer.get_player_name(), str(current_possessor.get_player_name() if is_instance_valid(current_possessor) else "no one")])
+        return
 
-        # Tell player script it lost the ball
-        if is_instance_valid(current_possessor):
-            if current_possessor.has_method("lose_ball"): current_possessor.lose_ball()
-            else: printerr("Ball Error: Player %s missing lose_ball() method!" % current_possessor.name)
+    print("BALL SCRIPT: ", current_possessor.name, " initiates pass towards ", target_destination)
+    var start_pos = global_position
 
-        current_possessor = null
-        set_deferred("freeze", false)
-        pass_reception_timer = 0.0 # Reset timer before potentially starting it
+    # --- Get Passer's Throwing Stat (Safely) ---
+    var passer_throwing_stat : int = 1 # Default to minimum if stat not found
+    if passer.has_method("get"): # Basic check if it might have exported vars
+        var throwing_val = passer.get("throwing") # Get value safely
+        if typeof(throwing_val) == TYPE_INT:
+            passer_throwing_stat = clamp(throwing_val, 1, MAX_THROWING_STAT)
+        # else: printerr("Player %s 'throwing' property is not an int!" % passer.name) # Optional warning
+    # else: printerr("Player %s missing get() method?" % passer.name) # Optional warning
 
-        # Turn monitoring OFF immediately during pass initiation
+    # --- Tell player script it lost the ball ---
+    if current_possessor.has_method("lose_ball"): current_possessor.lose_ball()
+    else: printerr("Ball Error: Player %s missing lose_ball() method!" % current_possessor.name)
+
+    current_possessor = null
+    set_deferred("freeze", false)
+    pass_reception_timer = 0.0 # Reset timer before potentially starting it
+
+    # Turn monitoring OFF immediately
+    if pickup_area != null:
+        pickup_area.monitoring = false
+        print("BALL SCRIPT: initiate_pass() - Monitoring forced OFF")
+
+    # --- Calculate final target position (Clamped to field) ---
+    # (This part remains the same)
+    var direction_to_target = (target_destination - start_pos)
+    var max_range_sq = max_pass_range * max_pass_range # Note: Max range isn't stat based yet
+    var final_target_pos : Vector2
+    if direction_to_target.length_squared() > max_range_sq:
+        final_target_pos = start_pos + direction_to_target.normalized() * max_pass_range
+    else:
+        final_target_pos = target_destination
+    final_target_pos.x = clamp(final_target_pos.x, -field_half_width + field_margin, field_half_width - field_margin)
+    final_target_pos.y = clamp(final_target_pos.y, -field_half_height + field_margin, field_half_height - field_margin)
+    print("BALL SCRIPT: Passing towards (clamped): ", final_target_pos)
+
+    # --- Calculate Vector and Distance ---
+    var vector_to_target = final_target_pos - start_pos
+    var distance = vector_to_target.length()
+
+    # --- Apply Velocity (Stat-Based) ---
+    if distance > 1.0:
+        # 1. Calculate Effective Speed based on Throwing Stat
+        # Lerp between base and max speed based on normalized stat (stat-1)/(max_stat-1)
+        var normalized_throwing = float(passer_throwing_stat - 1) / float(MAX_THROWING_STAT - 1)
+        var effective_pass_speed = lerp(BASE_PASS_SPEED, MAX_PASS_SPEED, normalized_throwing)
+        print_debug("  - Throwing: %d -> Normalized: %.2f -> Speed: %.1f" % [passer_throwing_stat, normalized_throwing, effective_pass_speed]) # Debug print
+
+        # 2. Calculate Inaccuracy based on Throwing Stat
+        # Lerp between base inaccuracy and min inaccuracy (more throwing = less inaccuracy)
+        var max_deviation_angle = lerp(BASE_INACCURACY_ANGLE, MIN_INACCURACY_ANGLE, normalized_throwing)
+        var random_deviation = randf_range(-max_deviation_angle, max_deviation_angle)
+        print_debug("  - Max Deviation: %.3f rad -> Actual Deviation: %.3f rad" % [max_deviation_angle, random_deviation]) # Debug print
+
+        # 3. Apply Inaccuracy to Direction
+        var intended_direction = vector_to_target.normalized()
+        var actual_direction = intended_direction.rotated(random_deviation)
+
+        # 4. Set Velocity
+        linear_velocity = actual_direction * effective_pass_speed
+
+        # 5. Calculate & Start Reception Timer (Using effective speed)
+        if effective_pass_speed > 0:
+            pass_reception_timer = distance / effective_pass_speed # Use actual distance and calculated speed
+            print("BALL SCRIPT: initiate_pass() - Pass reception timer started: %.2f sec" % pass_reception_timer)
+        else:
+            pass_reception_timer = 0.1 # Default small delay if speed is zero
+            printerr("Effective pass speed is zero!")
+
+    else:
+        # Target too close, drop ball
+        print("BALL SCRIPT: Pass target too close after clamping, dropping ball.")
+        linear_velocity = Vector2.ZERO
         if pickup_area != null:
-            pickup_area.monitoring = false
-            print("BALL SCRIPT: initiate_pass() - Monitoring forced OFF")
+            pickup_area.monitoring = true
+            print("BALL SCRIPT: Pass failed - PickupArea monitoring ON")
+        pass_reception_timer = 0.0 # Ensure timer isn't running
 
-        # Calculate final target position...
-        var direction_to_target = (target_destination - start_pos)
-        var max_range_sq = max_pass_range * max_pass_range
-        var final_target_pos : Vector2
-        if direction_to_target.length_squared() > max_range_sq:
-            final_target_pos = start_pos + direction_to_target.normalized() * max_pass_range
-        else:
-            final_target_pos = target_destination
-        final_target_pos.x = clamp(final_target_pos.x, -field_half_width + field_margin, field_half_width - field_margin)
-        final_target_pos.y = clamp(final_target_pos.y, -field_half_height + field_margin, field_half_height - field_margin)
-        print("BALL SCRIPT: Passing towards (clamped): ", final_target_pos)
-
-        # Calculate vector for velocity AFTER clamping target position
-        var vector_to_target = final_target_pos - start_pos
-        var distance = vector_to_target.length()
-
-        # --- Debug prints (Commented Out) ---
-        # print("DEBUG PASS CALC:")
-        # print("  Start Pos: ", start_pos)
-        # print("  Target Dest (Original): ", target_destination)
-        # print("  Final Target Pos (Clamped): ", final_target_pos)
-        # print("  Vector To Target: ", vector_to_target)
-        # print("  Vector Length^2: ", vector_to_target.length_squared())
-        # print("  Distance: ", distance)
-        # --- END Debug prints ---
-
-        # Apply velocity
-        # REMOVED pass_successful variable declaration and assignment
-        if distance > 1.0: # Use distance > threshold
-              linear_velocity = vector_to_target.normalized() * pass_speed
-              # print("  Applied Velocity: ", linear_velocity) # Comment out?
-
-              # --- Calculate & Start Dynamic Reception Timer ---
-              # This block only runs if distance > 1.0 (pass successful)
-              if pass_speed > 0: # Avoid division by zero
-                  pass_reception_timer = distance / pass_speed
-                  print("BALL SCRIPT: initiate_pass() - Pass reception timer started: %.2f sec" % pass_reception_timer)
-              else:
-                  pass_reception_timer = 0.1 # Default small delay if speed is zero
-                  printerr("Pass speed is zero!")
-              # --- END TIMER CHANGE ---
-
-        else:
-              # Target too close, drop ball
-              print("BALL SCRIPT: Pass target too close after clamping, dropping ball.")
-              linear_velocity = Vector2.ZERO
-              if pickup_area != null:
-                  pickup_area.monitoring = true # Turn monitoring ON immediately if pass fails
-                  print("BALL SCRIPT: Pass failed - PickupArea monitoring ON")
-              # Ensure timer isn't running if pass fails instantly
-              pass_reception_timer = 0.0
-
-    # Error condition checks...
-    elif not is_instance_valid(current_possessor):
-         printerr("Initiate pass called by ", str(passer.name) if passer else "Unknown", " but ball has no valid possessor!") # Fixed ternary warning
-    elif current_possessor != passer:
-         printerr("Initiate pass called by ", str(passer.name) if passer else "Unknown", " but ", current_possessor.name, " actually has the ball!") # Fixed ternary warning
+    # --- Error condition checks (remain the same) ---
+    # elif not is_instance_valid(current_possessor)... etc
