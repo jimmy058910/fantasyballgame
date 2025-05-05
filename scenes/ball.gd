@@ -1,9 +1,9 @@
-# ball.gd - Fixed unused is_player warning, includes Catching stat, dynamic pass timer
+# ball.gd - Added Kicking, fixed unused is_player warning
 extends RigidBody2D
 
 # --- Export Variables ---
 @export var pass_speed: float = 650.0      # Base speed, modified by Throwing
-@export var max_pass_range: float = 450.0
+@export var max_pass_range: float = 450.0  # Only used for PASSES now
 @export var bounce_impulse_strength : float = 100.0
 @export var follow_offset := Vector2(0, -25)
 
@@ -33,8 +33,8 @@ const MAX_CATCH_CHANCE: float = 0.98   # ~98% max chance
 
 # --- Internal State ---
 var current_possessor: Node2D = null
-var pass_reception_timer: float = 0.0
-var _is_arriving_from_pass: bool = false # Flag for catch check
+var pass_reception_timer: float = 0.0 # Used for both pass and kick reception
+var _is_arriving_from_pass: bool = false # Flag for catch check (applies to kicks too now)
 
 # --- Node References ---
 @onready var pickup_area: Area2D = $PickupArea
@@ -57,6 +57,7 @@ func _ready():
             else: print_debug("Ball: PickupArea signal connected via script.")
         else: print_debug("Ball: PickupArea signal already connected.")
     else: printerr("Ball Error: Cannot find child node named 'PickupArea'!")
+
 
 # --- Physics Update ---
 func _physics_process(delta):
@@ -84,6 +85,7 @@ func _physics_process(delta):
                 pickup_area.set_deferred("monitoring", true)
                 print("BALL SCRIPT: Ball stopped/settled - Monitoring ON (Safety Check)")
 
+
 # --- Signal Handler for Pickup ---
 func _on_pickup_area_body_entered(body: Node):
     if not body or not pickup_area or not body.is_in_group("players"): return
@@ -91,7 +93,7 @@ func _on_pickup_area_body_entered(body: Node):
     print("--- Pickup Area Entered by: ", body.name, " ---")
     print("State at entry: Possessor=%s, Frozen=%s, Monitoring=%s, ArrivingPass=%s" % [current_possessor, freeze, str(pickup_area.monitoring), _is_arriving_from_pass])
 
-    var is_player = true # Checked above
+    var is_player = true
     var is_knocked = body.get_is_knocked_down() if body.has_method("get_is_knocked_down") else true
 
     var can_attempt_pickup = (current_possessor == null and not freeze and pickup_area.monitoring and not is_knocked)
@@ -125,13 +127,13 @@ func _on_pickup_area_body_entered(body: Node):
         print_debug("Attempting loose ball pickup for %s" % body.name)
         pickup_allowed = true
 
-    if pickup_allowed and current_possessor == null and not freeze and pickup_area.monitoring \
-        and is_player and not is_knocked: # Use the is_player variable here
-            
+    # --- FIX: Use is_player variable here ---
+    if pickup_allowed and current_possessor == null and not freeze and pickup_area.monitoring and is_player and not is_knocked:
+    # --- END FIX ---
         print("BALL AREA DEBUG: Pickup conditions MET for ", body.name)
         current_possessor = body
         if body.has_method("pickup_ball"): body.pickup_ball()
-        else: printerr("...")
+        else: printerr("Ball Error: Player %s missing pickup_ball() method!" % body.name)
         pickup_area.set_deferred("monitoring", false)
         print("BALL SCRIPT: Pickup successful - Queued monitoring OFF (Deferred)")
         set_deferred("freeze", true)
@@ -147,7 +149,7 @@ func set_loose(bounce_dir_velocity: Vector2 = Vector2.ZERO):
     if is_instance_valid(current_possessor):
         print(print_prefix, current_possessor.name, " lost the ball! Telling player.")
         if current_possessor.has_method("lose_ball"): current_possessor.lose_ball()
-        else: printerr("...")
+        else: printerr("Ball Error: Player %s missing lose_ball() method!" % current_possessor.name)
     current_possessor = null
     set_deferred("freeze", false)
     pass_reception_timer = 0.0
@@ -159,6 +161,7 @@ func set_loose(bounce_dir_velocity: Vector2 = Vector2.ZERO):
     else: impulse_dir = Vector2(randf_range(-1,1), randf_range(-1,1)).normalized(); if impulse_dir == Vector2.ZERO: impulse_dir = Vector2.RIGHT
     apply_central_impulse(impulse_dir * bounce_impulse_strength)
     print(print_prefix, "Applied bounce impulse in direction: ", impulse_dir)
+
 
 # --- Function to Initiate a Pass ---
 func initiate_pass(passer: Node, target_destination: Vector2):
@@ -192,7 +195,7 @@ func initiate_pass(passer: Node, target_destination: Vector2):
         if pickup_area != null: pickup_area.monitoring = true; print("BALL SCRIPT: Pass failed - Monitor ON")
         pass_reception_timer = 0.0
 
-# --- Function to Initiate a Kick ---
+# --- Function to Initiate a Kick --- <<<< NEW FUNCTION ADDED HERE >>>>
 func initiate_kick(kicker: Node, target_destination: Vector2):
     if not is_instance_valid(kicker) or not kicker.has_method("get_player_name"): printerr("Invalid kicker!"); return
     if not is_instance_valid(current_possessor) or current_possessor != kicker: printerr("Kicker mismatch!"); return
@@ -200,9 +203,9 @@ func initiate_kick(kicker: Node, target_destination: Vector2):
     var start_pos = global_position
     var kicker_kicking_stat: int = 1; if kicker.has_method("get"): var kv=kicker.get("kicking"); if typeof(kv)==TYPE_INT: kicker_kicking_stat=clamp(kv,1,MAX_KICKING_STAT)
     if current_possessor.has_method("lose_ball"): current_possessor.lose_ball()
-    current_possessor = null; set_deferred("freeze", false); pass_reception_timer = 0.0
+    current_possessor = null; set_deferred("freeze", false); pass_reception_timer = 0.0 # Also reset timer on kick
     if pickup_area != null: pickup_area.monitoring = false; print("BALL SCRIPT: initiate_kick() - Monitoring forced OFF")
-    # Kicks likely ignore max_pass_range, aim directly for target (still clamp to field)
+    # Kicks ignore max_pass_range, aim directly for target (still clamp to field)
     var final_target_pos = target_destination
     final_target_pos.x = clamp(final_target_pos.x, -field_half_width+field_margin, field_half_width-field_margin)
     final_target_pos.y = clamp(final_target_pos.y, -field_half_height+field_margin, field_half_height-field_margin)
