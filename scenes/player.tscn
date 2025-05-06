@@ -19,6 +19,11 @@ team1_texture = ExtResource("3_qlg0r")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 
+[node name="RoleIndicator" type="ColorRect" parent="Sprite2D"]
+offset_top = -20.0
+offset_right = 10.0
+offset_bottom = -10.0
+
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_qhqgy")
 

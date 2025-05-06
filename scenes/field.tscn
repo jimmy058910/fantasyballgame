@@ -102,6 +102,7 @@ color = Color(0.765574, 0.202168, 0.214314, 0.54902)
 
 [node name="Player1" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-227, 105)
+player_role = "Passer"
 
 [node name="Player2" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-222, -128)
@@ -110,10 +111,12 @@ player_name = "Player2"
 [node name="Player3" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-409, -264)
 player_name = "Player3"
+player_role = "Passer"
 
 [node name="Player4" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-479, -2)
 player_name = "Player4"
+player_role = "Blocker"
 
 [node name="Player5" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-422, 280)
@@ -122,6 +125,7 @@ player_name = "Player5"
 [node name="Player6" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(-612, -2)
 player_name = "Player6"
+player_role = "Blocker"
 
 [node name="Player7" parent="." instance=ExtResource("4_7156t")]
 position = Vector2(53, -87)
@@ -129,29 +133,33 @@ team_id = 1
 player_name = "Player7"
 
 [node name="Player8" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(165, 41)
+position = Vector2(154, 92)
 team_id = 1
 player_name = "Player8"
 
 [node name="Player9" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(245, -426)
+position = Vector2(412, -343)
 team_id = 1
 player_name = "Player9"
+player_role = "Blocker"
 
 [node name="Player10" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(243, 439)
+position = Vector2(401, 310)
 team_id = 1
 player_name = "Player10"
+player_role = "Blocker"
 
 [node name="Player11" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(507, 205)
+position = Vector2(431, -2)
 team_id = 1
 player_name = "Player11"
+player_role = "Blocker"
 
 [node name="Player12" parent="." instance=ExtResource("4_7156t")]
-position = Vector2(524, -234)
+position = Vector2(320, 0)
 team_id = 1
 player_name = "Player12"
+player_role = "Passer"
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
