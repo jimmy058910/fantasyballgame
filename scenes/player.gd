@@ -1,4 +1,4 @@
-# player.gd - Full Corrected Version (May 8th)
+# player.gd - Full Corrected Version (May 8th, addressing return path errors)
 extends CharacterBody2D
 
 # Player Stats / Configuration
@@ -42,7 +42,8 @@ var game_manager = null # Optional
 
 # Constants for AI/Movement
 const FIELD_HALF_WIDTH: float = 960.0
-const FIELD_HALF_HEIGHT: float = 540.0
+const FIELD_HALF_HEIGHT: float = 540.0 # Added for y_spread calculation
+const field_margin: float = 15.0     # Added for y_spread clamping
 const GOAL_TARGET_Y: float = 0
 const GOAL_TARGET_X_TEAM0: float = -750.0 # Team 0's End Zone (Attacked by Team 1)
 const GOAL_TARGET_X_TEAM1: float = 750.0  # Team 1's End Zone (Attacked by Team 0)
@@ -58,11 +59,12 @@ const OPEN_RADIUS: float = 75.0
 const OPEN_RADIUS_SQ: float = OPEN_RADIUS * OPEN_RADIUS
 const BLOCKING_ENGAGEMENT_RADIUS: float = 150.0
 const BLOCKING_ENGAGEMENT_RADIUS_SQ: float = BLOCKING_ENGAGEMENT_RADIUS * BLOCKING_ENGAGEMENT_RADIUS
-const HANDOFF_RADIUS: float = 120.0 # How close teammate needs to be for Blocker to pass
+const HANDOFF_RADIUS: float = 120.0
 const HANDOFF_RADIUS_SQ: float = HANDOFF_RADIUS * HANDOFF_RADIUS
 const MAX_LOOSE_BALL_ATTACKERS = 2
-const SCORE_ATTEMPT_RANGE: float = 150.0 # How close to goal to prioritize running
+const SCORE_ATTEMPT_RANGE: float = 150.0
 const SCORE_ATTEMPT_RANGE_SQ: float = SCORE_ATTEMPT_RANGE * SCORE_ATTEMPT_RANGE
+
 
 func _ready():
     current_stamina = max_stamina
@@ -75,7 +77,7 @@ func _ready():
         elif player_role == "Runner": role_indicator.color = Color.GREEN
         elif player_role == "Blocker": role_indicator.color = Color.RED
         else: role_indicator.color = Color.GRAY
-    else: printerr("Player %s: Cannot find RoleIndicator node!" % player_name)
+    else: printerr("Player %s: Cannot find RoleIndicator node! Path used: $Sprite2D/RoleIndicator" % player_name)
 
     # Set Player Texture
     if team_id == 0:
@@ -103,20 +105,17 @@ func _physics_process(delta):
 
     # --- Decision Making (if has ball) ---
     if has_ball:
-        # --- Determine this player's attacking goal for proximity check ---
         var attacking_goal_center = TEAM1_GOAL_CENTER if team_id == 0 else TEAM0_GOAL_CENTER
         var distance_to_goal_sq = global_position.distance_squared_to(attacking_goal_center)
 
-        # --- PRIORITY: If very close to scoring, just try to run ---
         if distance_to_goal_sq < SCORE_ATTEMPT_RANGE_SQ:
-            # Player is in scoring range, don't consider kick/pass, just let movement logic run
-            print_debug("%s is in scoring range, prioritizing run!" % player_name)
+            # print_debug("%s is in scoring range, prioritizing run!" % player_name)
             pass # Fall through to standard movement logic which targets the goal
-
-        # --- ELSE (not in immediate scoring range), consider Blocker action, Kick, or Pass ---
-        elif player_role == "Blocker": # Blocker with Ball
+        
+        elif player_role == "Blocker":
             var target_for_handoff = find_nearby_offensive_teammate()
             if target_for_handoff != null and can_pass_timer <= 0.0:
+                # print_debug("Blocker %s attempting quick pass/handoff to %s" % [player_name, target_for_handoff.player_name])
                 initiate_pass(target_for_handoff)
                 velocity = Vector2.ZERO
             else:
@@ -124,18 +123,17 @@ func _physics_process(delta):
             move_and_slide()
             return
 
-        elif can_kick_timer <= 0.0 and is_in_clearing_zone(): # Non-Blocker Clearing Kick
+        elif can_kick_timer <= 0.0 and is_in_clearing_zone():
             initiate_kick()
-            # No return, allow movement update after has_ball becomes false
+            # has_ball becomes false, player continues to movement logic as non-carrier
 
-        elif can_pass_timer <= 0.0: # Non-Blocker Pressure Pass
+        elif can_pass_timer <= 0.0:
             if is_under_pressure():
                 var target_teammate = find_open_teammate()
                 if target_teammate != null:
+                    # print_debug("%s passing under pressure to OPEN teammate %s!" % [player_name, target_teammate.player_name])
                     initiate_pass(target_teammate)
                     velocity = Vector2.ZERO; move_and_slide(); return
-
-        # If no kick/pass/blocker action taken, ball carrier will proceed to movement logic
 
     # --- Stamina ---
     if velocity.length_squared() > 10: current_stamina -= STAMINA_DRAIN_RATE * delta
@@ -160,65 +158,39 @@ func _physics_process(delta):
 # -----------------------------------------------------------------------------
 # AI TARGETING AND DECISION MAKING HELPERS
 # -----------------------------------------------------------------------------
-# Determines WHERE the player should move towards this frame
-# In player.gd
-
-# Determines WHERE the player should move towards this frame
 func determine_target_position() -> Vector2:
-    if ball_node == null:
-        # printerr("Player %s cannot find ball node in determine_target_position!" % player_name)
-        return global_position # Stay put if no ball
+    if ball_node == null: return global_position
 
-    # Determine which goal THIS player is attacking (the one they score in)
-    # Team 0 (Starts Left) attacks TEAM1_GOAL_CENTER (Right, +X).
-    # Team 1 (Starts Right) attacks TEAM0_GOAL_CENTER (Left, -X).
     var target_goal_center: Vector2 = TEAM1_GOAL_CENTER if team_id == 0 else TEAM0_GOAL_CENTER
 
     if has_ball:
-        # --- Offensive AI (Ball Carrier) ---
-        # This logic is primarily for Runners/Passers if they have the ball.
-        # Blocker ball-carrying logic is handled directly in _physics_process and usually returns early.
         return target_goal_center
 
-    elif ball_node.current_possessor == null:
-        # --- Ball is loose ---
+    elif ball_node.current_possessor == null: # Ball is loose
         var players = get_all_players()
         var my_dist_sq = global_position.distance_squared_to(ball_node.global_position)
         var players_closer_count = 0
-        # const MAX_LOOSE_BALL_ATTACKERS = 2 # Defined at top of script
-
-        for p in players: # Check all OTHER players
+        for p in players:
             if p.global_position.distance_squared_to(ball_node.global_position) < my_dist_sq:
                 players_closer_count += 1
         
         if players_closer_count < MAX_LOOSE_BALL_ATTACKERS:
-            # This player IS one of the closest designated attackers, go for the ball.
-            # print_debug("%s (%s) is one of %d closest, going for loose ball." % [player_name, player_role, MAX_LOOSE_BALL_ATTACKERS])
             return ball_node.global_position
-        else:
-            # --- CORRECTED LOGIC for Non-Attackers on Loose Ball ---
-            # Not one of the designated attackers.
-            # Move to a cautious defensive/neutral position on own side of midfield.
+        else: # Not one of the designated attackers for loose ball.
             var defensive_hold_x_pos: float
-            # User confirmed: Team 0 starts/defends Left (-X), Team 1 starts/defends Right (+X)
             if team_id == 0: # Team 0 DEFENDS Left side (-X)
-                defensive_hold_x_pos = -FIELD_HALF_WIDTH * 0.3 # e.g., -288 if half_width is 960
+                defensive_hold_x_pos = -FIELD_HALF_WIDTH * 0.25
             else: # Team 1 DEFENDS Right side (+X)
-                defensive_hold_x_pos = FIELD_HALF_WIDTH * 0.3  # e.g., 288 if half_width is 960
-
-            # Spread out vertically somewhat randomly
-            var y_spread = (hash(player_name) % int(FIELD_HALF_HEIGHT * 1.5)) - (FIELD_HALF_HEIGHT * 0.75)
-            
-            var strategic_target = Vector2(defensive_hold_x_pos, y_spread)
-            
-            # print_debug("%s (%s) (loose ball, non-attacker) moving to defensive hold %s" % [player_name, player_role, str(strategic_target.round())])
-            return strategic_target
-            # --- END CORRECTED LOGIC ---
+                defensive_hold_x_pos = FIELD_HALF_WIDTH * 0.25
+            var target_y = ball_node.global_position.y
+            target_y += (hash(player_name) % int(FIELD_HALF_HEIGHT * 0.8)) - (FIELD_HALF_HEIGHT * 0.4)
+            target_y = clamp(target_y, -FIELD_HALF_HEIGHT + field_margin, FIELD_HALF_HEIGHT - field_margin)
+            var strategic_target = Vector2(defensive_hold_x_pos, target_y)
+            return global_position.lerp(strategic_target, 0.1)
 
     else: # Ball is held by someone else
         var carrier = ball_node.current_possessor
-        if not is_instance_valid(carrier):
-             return ball_node.global_position
+        if not is_instance_valid(carrier): return ball_node.global_position
 
         if carrier.team_id != self.team_id: # Defend opponent carrier
             return carrier.global_position
@@ -228,6 +200,7 @@ func determine_target_position() -> Vector2:
             elif player_role == "Passer": return calculate_basic_support_pos(carrier)
             else: push_warning("Player %s unknown role '%s'." % [player_name, player_role]); return calculate_basic_support_pos(carrier)
 
+# --- Corrected Helper Functions (Return Paths) ---
 func get_all_players() -> Array[Node]:
     var players: Array[Node] = []
     var parent = get_parent()
@@ -235,7 +208,7 @@ func get_all_players() -> Array[Node]:
         for child in parent.get_children():
             if child.has_method("get_player_name") and child != self:
                  players.append(child)
-    return players # Always returns, even if empty
+    return players
 
 func is_under_pressure() -> bool:
     var all_players = get_all_players()
@@ -243,17 +216,17 @@ func is_under_pressure() -> bool:
         if opponent.team_id != self.team_id and opponent.has_method("get_is_knocked_down") and not opponent.get_is_knocked_down():
             if global_position.distance_squared_to(opponent.global_position) < PRESSURE_RADIUS_SQ:
                 return true
-    return false # Must be outside the loop
+    return false
 
-func find_open_teammate(): # Removed -> Node hint
+func find_open_teammate(): # Removed -> Node type hint for now
     var all_players = get_all_players()
-    var best_teammate = null
+    var best_teammate = null # Default to null
     for teammate in all_players:
         if teammate.team_id == self.team_id and teammate.has_method("get_is_knocked_down") and not teammate.get_is_knocked_down():
             if is_teammate_open(teammate, all_players):
                 best_teammate = teammate
-                print_debug("%s found OPEN teammate: %s" % [player_name, best_teammate.player_name])
-                return best_teammate
+                # print_debug("%s found OPEN teammate: %s" % [player_name, best_teammate.player_name]) # Keep commented for noise
+                return best_teammate # Return first open teammate found
     return null # Explicitly return null if no one found
 
 func is_teammate_open(teammate_node: Node, all_players: Array[Node]) -> bool:
@@ -261,7 +234,7 @@ func is_teammate_open(teammate_node: Node, all_players: Array[Node]) -> bool:
         if opponent.team_id != self.team_id and opponent.has_method("get_is_knocked_down") and not opponent.get_is_knocked_down():
             if teammate_node.global_position.distance_squared_to(opponent.global_position) < OPEN_RADIUS_SQ:
                 return false
-    return true # Must be outside the loop
+    return true
 
 func is_in_clearing_zone() -> bool:
     # print_debug("Checking kick zone for %s (Team %d) at pos %s" % [player_name, team_id, str(global_position.round())])
@@ -278,7 +251,7 @@ func find_defender_to_block(carrier: Node) -> Vector2:
     var all_players = get_all_players()
     var target_defender: Node = null
     var min_dist_sq_to_blocker = BLOCKING_ENGAGEMENT_RADIUS_SQ # Check within this range OF BLOCKER
-    # closest_defender_pos removed
+    # Removed closest_defender_pos
     for opponent in all_players:
         if opponent.team_id != self.team_id and opponent.has_method("get_is_knocked_down") and not opponent.get_is_knocked_down():
             var dist_sq_to_carrier = carrier.global_position.distance_squared_to(opponent.global_position)
@@ -299,9 +272,8 @@ func calculate_basic_support_pos(carrier: Node) -> Vector2:
     support_pos += side_dir * side_amt; return support_pos
 
 # Calculates a target point downfield for Runners supporting the carrier
-func find_open_route_position(carrier: Node) -> Vector2:
+func find_open_route_position(carrier: Node) -> Vector2: # carrier parameter is now used
     # Determine the goal the CARRIER's team is attacking
-    # Team 0 (carrier) attacks Team1_Goal_Center, Team 1 (carrier) attacks Team0_Goal_Center
     var carrier_target_goal: Vector2 = TEAM1_GOAL_CENTER if carrier.team_id == 0 else TEAM0_GOAL_CENTER
 
     # Calculate direction from THIS RUNNER'S position to the CARRIER'S attacking goal
@@ -310,18 +282,16 @@ func find_open_route_position(carrier: Node) -> Vector2:
     # Safety check for zero vector if runner is already at/near that goal
     if direction_to_goal == Vector2.ZERO:
         # Fallback direction based on which way the CARRIER'S team generally attacks
-        direction_to_goal = Vector2(1, 0) if carrier.team_id == 0 else Vector2(-1, 0) # Team 0 attacks Right (+X), Team 1 attacks Left (-X)
+        # Team 0 (carrier) attacks Right (+X), Team 1 (carrier) attacks Left (-X)
+        direction_to_goal = Vector2(1, 0) if carrier.team_id == 0 else Vector2(-1, 0)
 
-    # --- Calculate Target ---
-    # Aim for a point significantly downfield from the runner's current position
-    var route_distance = 300.0 # How far downfield to target initially (tune this)
-    # Add slight random angle variation to spread runners out
+    var route_distance = 300.0 # How far downfield to target (tune this)
     var random_angle_variation = randf_range(-PI / 10.0, PI / 10.0) # +/- 18 degrees approx
     var target_direction = direction_to_goal.rotated(random_angle_variation)
 
     var target_route_pos = global_position + target_direction * route_distance
 
-    # print_debug("%s (Runner) running route towards %s relative to carrier %s" % [player_name, str(target_route_pos.round()), carrier.player_name]) # Optional debug
+    # print_debug("%s (Runner) running route towards %s" % [player_name, str(target_route_pos.round())])
     return target_route_pos
 
 func find_nearby_offensive_teammate(): # Returns Node or null
@@ -329,7 +299,7 @@ func find_nearby_offensive_teammate(): # Returns Node or null
     var min_dist_sq = HANDOFF_RADIUS_SQ
     for tm in players:
         if tm.team_id == self.team_id and tm.has_method("get_is_knocked_down") and not tm.get_is_knocked_down() \
-        and tm.has_method("get"): # Make sure it's a player node
+        and tm.has_method("get"):
             var role = tm.get("player_role")
             if role == "Runner" or role == "Passer":
                 var dist_sq = global_position.distance_squared_to(tm.global_position)

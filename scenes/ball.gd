@@ -151,8 +151,11 @@ func _on_pickup_area_body_entered(body: Node):
 
         if randf() < catch_chance: # Catch roll
             print("Catch Successful!"); pickup_allowed = true
-        else: # Catch Fail
-            print("Catch FAILED! Dropped by %s." % body.name); var bv = body.velocity * -0.3 + Vector2(randf_range(-30,30), randf_range(-30,-100)); set_loose(bv); pickup_allowed = false; print("------------------------------------"); return
+        else: # Catch FAILED!
+            print("Catch FAILED! Dropped by %s." % body.name)
+            var bounce_vel = body.velocity * -0.3 + Vector2(randf_range(-30, 30), randf_range(-30, -100))
+            call_deferred("set_loose", bounce_vel) # <<< Use call_deferred here
+            pickup_allowed = false; print("------------------------------------"); return
 
         intended_receiver = null # Clear receiver after attempt
 
@@ -183,13 +186,21 @@ func set_loose(bounce_dir_velocity: Vector2 = Vector2.ZERO):
     if is_instance_valid(current_possessor):
         print(print_prefix, current_possessor.name, " lost the ball! Telling player.")
         if current_possessor.has_method("lose_ball"): current_possessor.lose_ball()
-        else: printerr("...") # Error handling
+        else: printerr("Ball Error: Player %s missing lose_ball() method!" % current_possessor.name)
     current_possessor = null
-    intended_receiver = null # Clear intended receiver
+    intended_receiver = null
     set_deferred("freeze", false)
-    pass_reception_timer = 0.0 # Reset timer
+
+    # --- ADD: Brief "bobble" timer, making ball uncatchable for a moment ---
+    pass_reception_timer = 0.15 # e.g., 0.15 seconds of uncatchability
+    _is_arriving_from_pass = true # Treat this brief moment like a pass arrival for catch logic
+    print_debug("BALL SCRIPT: set_loose() - Initiating brief 'bobble' (%.2f sec)" % pass_reception_timer)
+    # --- END ADD ---
+
     if pickup_area != null:
-        pickup_area.set_deferred("monitoring", true)
+        # Monitoring will be turned on by pass_reception_timer ending or settle check
+        if pickup_area.monitoring: # If it was on, turn it off for the bobble
+            pickup_area.monitoring = false 
         print("BALL SCRIPT: set_loose() - Setting monitoring ON (Deferred)")
     var impulse_dir = Vector2.RIGHT
     if bounce_dir_velocity.length_squared() > 1.0: impulse_dir = bounce_dir_velocity.normalized() * -1.0
