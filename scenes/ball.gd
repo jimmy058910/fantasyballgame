@@ -78,16 +78,27 @@ func _physics_process(delta):
             if pickup_area != null and pickup_area.monitoring: pickup_area.set_deferred("monitoring", false)
             global_position = current_possessor.global_position + follow_offset
         else: print("BALL SCRIPT: Possessor invalid, setting loose."); set_loose()
-    else: # Ball Loose
+    else: # Ball is LOOSE
         if freeze: set_deferred("freeze", false)
+
+        # --- CHANGE: More aggressive monitoring when loose ---
+        if pickup_area != null and not pickup_area.monitoring and pass_reception_timer <= 0.0:
+            pickup_area.set_deferred("monitoring", true)
+            print_debug("BALL PHYSICS (Loose & Timer Done): Forcing monitoring ON.")
+        # --- END CHANGE ---
+
+        # Ball settling logic (to stop it completely)
         var stop_threshold_sq = 5.0*5.0
         if not freeze and pass_reception_timer <= 0.0 and \
            linear_velocity.length_squared() < stop_threshold_sq and abs(angular_velocity) < 0.1:
             linear_velocity = Vector2.ZERO; angular_velocity = 0.0
-            if pickup_area != null and not pickup_area.monitoring:
-                pickup_area.set_deferred("monitoring", true)
-                print("BALL SCRIPT: Ball stopped/settled - Monitoring ON (Safety Check)")
-
+            # Monitoring should already be on from the check above if timer is done.
+            # This print is mostly for the "settled" state itself now.
+            if pickup_area != null and not pickup_area.monitoring: # Should be rare now
+                 pickup_area.set_deferred("monitoring", true)
+                 print("BALL SCRIPT: Ball stopped/settled - Monitoring FORCED ON (Safety Check - RARE)")
+            else:
+                 print("BALL SCRIPT: Ball stopped/settled.")
 
 # --- Signal Handler for Pickup ---
 func _on_pickup_area_body_entered(body: Node):
