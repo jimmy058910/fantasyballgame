@@ -1,6 +1,17 @@
 # player.gd - Full Version with Passer Support AI & Role-Prioritized Pass Targeting
 extends CharacterBody2D
 
+enum PlayerState {
+    IDLE,                   # (Placeholder for now, e.g., pre-game or if truly doing nothing)
+    PURSUING_BALL,          # Actively trying to get a loose ball
+    SUPPORTING_OFFENSE,     # Teammate has the ball, player is supporting
+    HAS_BALL,               # Player is the current ball carrier
+    DEFENDING,              # Opponent has the ball
+    KNOCKED_DOWN,
+    BLOCKER_ENGAGING        # Blocker specific: moving to or engaging a block target
+}
+var current_state: PlayerState = PlayerState.IDLE # Initial state
+
 # Player Stats / Configuration
 @export var team_id: int = 0
 @export var player_name: String = "Player1" # Default, SET UNIQUE IN EDITOR
@@ -72,6 +83,7 @@ const SCORE_ATTEMPT_RANGE_SQ: float = SCORE_ATTEMPT_RANGE * SCORE_ATTEMPT_RANGE
 
 func _ready():
     current_stamina = max_stamina
+    current_state = PlayerState.IDLE # Or PURSUING_BALL if appropriate for game start
     ball_node = get_parent().find_child("Ball")
     if ball_node == null: printerr("Player %s couldn't find Ball node!" % player_name)
 
@@ -98,7 +110,6 @@ func _ready():
         player_name = name
         push_warning("Player node '%s' player_name property not set in Inspector, using node name." % name)
 
-
 func _physics_process(delta):
     # --- Update Cooldown Timers ---
     if can_pass_timer > 0.0:
@@ -107,114 +118,63 @@ func _physics_process(delta):
         can_kick_timer -= delta
     
     # Blocker specific: Update timer for holding the ball
-    if player_role == "Blocker" and has_ball:
-        if blocker_hold_ball_timer > 0.0: # Only count down if it was set
+    if player_role == "Blocker" and has_ball and current_state == PlayerState.HAS_BALL: # Check state too
+        if blocker_hold_ball_timer > 0.0:
             blocker_hold_ball_timer -= delta
 
-    # --- State Handling: Knockdown ---
-    if get_is_knocked_down(): # Use getter
-        handle_knockdown(delta)
-        return # Don't do anything else while knocked down
+    # --- State-Specific Logic & Action Decisions ---
+    # (This 'match current_state:' block should already be in your script from Turn 129/131)
+    match current_state:
+        PlayerState.IDLE:                  _state_idle(delta)
+        PlayerState.PURSUING_BALL:         _state_pursuing_ball(delta)
+        PlayerState.SUPPORTING_OFFENSE:    _state_supporting_offense(delta)
+        PlayerState.HAS_BALL:              _state_has_ball(delta) # Contains Blocker logic, kick, pass
+        PlayerState.DEFENDING:             _state_defending(delta)
+        PlayerState.KNOCKED_DOWN:          _state_knocked_down(delta)
+        PlayerState.BLOCKER_ENGAGING:      _state_blocker_engaging(delta)
+        _:
+            push_error("Player %s in unknown state: %s" % [player_name, PlayerState.keys()[current_state]])
+            set_state(PlayerState.IDLE) # Fallback
 
-    # --- Decision Making (if has ball) ---
-    if has_ball:
-        var attacking_goal_center = TEAM1_GOAL_CENTER if team_id == 0 else TEAM0_GOAL_CENTER
-        var distance_to_goal_sq = global_position.distance_squared_to(attacking_goal_center)
-
-        # PRIORITY 1: If very close to scoring, just try to run
-        if distance_to_goal_sq < SCORE_ATTEMPT_RANGE_SQ:
-            # print_debug("%s is in scoring range, prioritizing run!" % player_name)
-            pass # Allow to fall through to normal movement logic, which targets the goal
+    # --- Common Post-State Logic (Stamina, Movement) ---
+    # This logic runs AFTER the state has potentially decided an action or set velocity
+    if current_state != PlayerState.KNOCKED_DOWN: # Knocked down state handles its own minimal movement
         
-        # PRIORITY 2: Blocker with the ball has special handling
-        elif player_role == "Blocker":
-            var target_for_handoff = find_nearby_offensive_teammate()
+        var state_handled_movement = false 
+        # Check if the current state already fully handled movement and velocity
+        if (current_state == PlayerState.HAS_BALL and player_role == "Blocker") or \
+           (current_state == PlayerState.BLOCKER_ENGAGING and is_instance_valid(current_block_target_node) and \
+            global_position.distance_squared_to(current_block_target_node.global_position) < (30.0*30.0) ):
+            state_handled_movement = true
+        # Add other states here if they fully manage their own velocity and move_and_slide
+
+        if not state_handled_movement:
+            # Stamina calculation
+            var stamina_factor = clamp(current_stamina / max_stamina if max_stamina > 0 else 1.0, 0.2, 1.0)
+            var effective_speed = base_speed * stamina_factor
+
+            var target_position = determine_target_position()
+            var direction = global_position.direction_to(target_position)
             
-            if target_for_handoff != null and can_pass_timer <= 0.0:
-                # Ideal: Found teammate for quick pass and cooldown is ready
-                # print_debug("Blocker %s attempting quick pass/handoff to %s" % [player_name, target_for_handoff.player_name])
-                initiate_pass(target_for_handoff)
-                velocity = Vector2.ZERO # Stop after initiating pass
-            elif blocker_hold_ball_timer <= 0.0:
-                # Held ball too long! Desperation kick/pass forward.
-                print_debug("Blocker %s held ball too long (%.2fs), desperation kick!" % [player_name, BLOCKER_MAX_HOLD_TIME])
-                var forward_direction = (attacking_goal_center - global_position).normalized()
-                # Safety fallback for direction if already at goal (shouldn't happen due to SCORE_ATTEMPT_RANGE)
-                if forward_direction == Vector2.ZERO: 
-                    forward_direction = Vector2(1,0) if team_id == 0 else Vector2(-1,0)
-                var desperation_target = global_position + forward_direction * 150.0 # Kick 150px ahead
-                
-                # Use initiate_kick for a less accurate, potentially stronger clear
-                initiate_kick(desperation_target) # Call the player's own kick function
-                # initiate_kick already sets has_ball to false via ball_node.initiate_kick
-                # and resets pass/kick cooldowns in player.gd
-                velocity = Vector2.ZERO # Stop after initiating this desperation kick
+            if global_position.distance_squared_to(target_position) > 25:
+                velocity = direction * effective_speed
             else:
-                # No immediate handoff target OR pass cooldown is active OR still has hold time.
-                # Blocker stops and protects the ball.
-                # print_debug("Blocker %s holding ball. Handoff target: %s, Pass CD: %.1f, Hold Timer: %.1f" % [player_name, target_for_handoff, can_pass_timer, blocker_hold_ball_timer])
                 velocity = Vector2.ZERO
-            
-            move_and_slide() # Apply Blocker's velocity (likely zero)
-            return # Blocker's specific ball-handling logic ends here for this frame
-
-        # PRIORITY 3: Non-Blocker Actions (Kick/Pass)
-        # These only run if the player has the ball, is NOT a Blocker, AND is not in immediate scoring range.
-        elif can_kick_timer <= 0.0 and is_in_clearing_zone():
-            # print_debug("%s is in clearing zone, attempting kick." % player_name)
-            initiate_kick()
-            # After initiate_kick, has_ball will be false.
-            # Player will continue to movement logic below, now acting as a non-carrier.
-
-        elif can_pass_timer <= 0.0: # Check for Passing (if didn't kick and pass cooldown ready)
-            if is_under_pressure():
-                var target_teammate = find_open_teammate() # This now prioritizes by role
-                if target_teammate != null:
-                    # print_debug("%s passing under pressure to OPEN teammate %s!" % [player_name, target_teammate.player_name])
-                    initiate_pass(target_teammate) # Pass the node
-                    velocity = Vector2.ZERO # Stop moving immediately after initiating pass
-                    move_and_slide() # Apply the stop
-                    return # Exit physics process for this frame after deciding to pass
         
-        # If no action above caused a 'return', carrier will fall through to movement logic
+        move_and_slide() # Apply calculated or state-set velocity
 
-    # --- Stamina (runs if not returned early) ---
-    if velocity.length_squared() > 10: # If moving significantly
-        current_stamina -= STAMINA_DRAIN_RATE * delta
-    else:
-        current_stamina += STAMINA_RECOVERY_RATE * delta
-    current_stamina = clamp(current_stamina, 0.0, max_stamina)
+        # Stamina drain/recovery AFTER movement has been applied
+        if velocity.length_squared() > 10: current_stamina -= STAMINA_DRAIN_RATE * delta
+        else: current_stamina += STAMINA_RECOVERY_RATE * delta
+        current_stamina = clamp(current_stamina, 0.0, max_stamina)
 
-    # Calculate effective speed based on stamina
-    var stamina_factor = clamp(current_stamina / max_stamina, 0.2, 1.0)
-    var effective_speed = base_speed * stamina_factor
-
-    # --- AI Movement Targeting (if not handled by Blocker specific logic above and returned) ---
-    # This is reached if:
-    # - Player doesn't have the ball.
-    # - Player has the ball, is NOT a Blocker, is NOT in scoring range, AND didn't kick/pass.
-    var target_position = determine_target_position() # This now includes refined loose ball logic
-    var direction = global_position.direction_to(target_position)
-
-    # Only set new velocity if not a Blocker who just decided to hold the ball (their velocity is already ZERO).
-    # Or if a pass/kick just occurred and velocity was intentionally zeroed (and they returned).
-    # If has_ball is true here, it means it's a Runner/Passer who didn't pass/kick.
-    if global_position.distance_squared_to(target_position) > 25: # Basic check to prevent jittering
-        velocity = direction * effective_speed
-    else:
-        velocity = Vector2.ZERO
-
-    # --- Execute Movement ---
-    move_and_slide()
-
-    # --- Update Sprite Rotation ---
-    if velocity.length_squared() > 0:
-        sprite.rotation = velocity.angle()
+        # Update Sprite Rotation (if moving)
+        if velocity.length_squared() > 0:
+            sprite.rotation = velocity.angle()
 
 # -----------------------------------------------------------------------------
 # AI TARGETING AND DECISION MAKING HELPERS
 # -----------------------------------------------------------------------------
-# Determines WHERE the player should move towards this frame
 # Determines WHERE the player should move towards this frame
 func determine_target_position() -> Vector2:
     if ball_node == null:
@@ -440,15 +400,42 @@ func calculate_basic_support_pos(carrier: Node) -> Vector2:
     var side_dir = Vector2(dir_to_goal.y, -dir_to_goal.x); var side_amt = (hash(player_name)%100-50)
     support_pos += side_dir * side_amt; return support_pos
 
+# Calculates a target point downfield for Runners supporting the carrier
+# Calculates a target point downfield for Runners supporting the carrier
 func find_open_route_position(carrier: Node) -> Vector2:
+    # Determine the goal the CARRIER's team is attacking
     var carrier_target_goal: Vector2 = TEAM1_GOAL_CENTER if carrier.team_id == 0 else TEAM0_GOAL_CENTER
+    
     var direction_to_goal = (carrier_target_goal - global_position).normalized()
+
     if direction_to_goal == Vector2.ZERO:
         direction_to_goal = Vector2(1, 0) if carrier.team_id == 0 else Vector2(-1, 0)
+
     var route_distance = 300.0
+    # var lateral_spread_strength = 150.0 # <--- THIS LINE WAS REMOVED
+    
+    var hash_value = hash(player_name)
+    var lateral_offset_factor = 0.0
+    if hash_value % 3 == 0:
+        lateral_offset_factor = 0.0
+    elif hash_value % 3 == 1:
+        lateral_offset_factor = 0.75
+    else: # hash_value % 3 == 2
+        lateral_offset_factor = -0.75
+
+    var perpendicular_direction = direction_to_goal.orthogonal() # Use base_direction_to_goal here
+    
+    # The lateral offset is applied, then normalized with the forward direction
+    var final_target_direction = (direction_to_goal + perpendicular_direction * lateral_offset_factor).normalized()
+    
     var random_angle_variation = randf_range(-PI / 10.0, PI / 10.0)
-    var target_direction = direction_to_goal.rotated(random_angle_variation)
-    var target_route_pos = global_position + target_direction * route_distance
+    final_target_direction = final_target_direction.rotated(random_angle_variation)
+
+    var target_route_pos = global_position + final_target_direction * route_distance
+
+    target_route_pos.x = clamp(target_route_pos.x, -FIELD_HALF_WIDTH + field_margin, FIELD_HALF_WIDTH - field_margin)
+    target_route_pos.y = clamp(target_route_pos.y, -FIELD_HALF_HEIGHT + field_margin, FIELD_HALF_HEIGHT - field_margin)
+    
     return target_route_pos
 
 # --- NEW FUNCTION for Passer Support ---
@@ -505,12 +492,20 @@ func pickup_ball():
         has_ball = true
         can_pass_timer = PASS_COOLDOWN
         can_kick_timer = KICK_COOLDOWN
-        if player_role == "Blocker": # <<< ADD THIS BLOCK
-            blocker_hold_ball_timer = BLOCKER_MAX_HOLD_TIME # Start the hold timer for blockers
-        print_debug("%s picked up ball." % player_name)
+        if player_role == "Blocker":
+            blocker_hold_ball_timer = BLOCKER_MAX_HOLD_TIME
+
+        current_state = PlayerState.HAS_BALL # <<< SET STATE
+        print_debug("%s picked up ball. State: HAS_BALL" % player_name)
 
 func lose_ball():
-    if has_ball: has_ball = false; print_debug("%s lost ball." % player_name)
+    if has_ball:
+        has_ball = false
+        current_block_target_node = null # Clear block target if had one
+        # Decide next state: if ball is now loose, pursue it.
+        # More nuanced transitions can be added later (e.g., if pass was complete to teammate)
+        current_state = PlayerState.PURSUING_BALL # <<< SET STATE
+        print_debug("%s lost ball. State: PURSUING_BALL" % player_name)
 
 func initiate_pass(target_teammate: Node):
     if has_ball and ball_node and not get_is_knocked_down():
@@ -542,12 +537,26 @@ func _on_tackle_area_body_entered(body):
                 if ball_node and ball_node.current_possessor == body:
                     ball_node.set_loose(body.velocity)
 
-func apply_knockdown(_tackler):
-    if not get_is_knocked_down():
+# Called BY the player who successfully tackled THIS player
+func apply_knockdown(_tackler): # _tackler parameter is present but not used in this version
+    # Only apply if not already knocked down
+    if not get_is_knocked_down(): # Use getter function
         print_debug(">>> %s applying knockdown, DISABLING shape: %s" % [player_name, collision_shape.name if collision_shape else "NULL"])
-        is_knocked_down = true; knockdown_timer = KNOCKDOWN_DURATION; velocity = Vector2.ZERO
-        if collision_shape: collision_shape.set_deferred("disabled", true)
-        else: printerr("ERROR: %s missing collision_shape for knockdown!" % player_name)
+        
+        is_knocked_down = true      # Set the boolean state variable
+        knockdown_timer = KNOCKDOWN_DURATION # Start the timer
+        velocity = Vector2.ZERO     # Stop all movement immediately
+        
+        # --- Transition State ---
+        set_state(PlayerState.KNOCKED_DOWN) # Set the FSM state
+        # ---
+
+        # Disable collision shape safely
+        if collision_shape:
+            collision_shape.set_deferred("disabled", true)
+        else:
+            # Error if shape node not found
+            printerr("ERROR in apply_knockdown for %s: Cannot find collision_shape node to disable!" % player_name)
 
 func handle_knockdown(delta):
     knockdown_timer -= delta; velocity = velocity.move_toward(Vector2.ZERO, 300 * delta); move_and_slide()
@@ -557,6 +566,136 @@ func handle_knockdown(delta):
         if collision_shape and collision_shape.disabled: collision_shape.set_deferred("disabled", false)
 
 # ------------------------------------ UTILITY / GETTERS / RESET ------------------------------------
+func set_state(new_state: PlayerState):
+    if current_state != new_state:
+        print_debug("%s changing state from %s to %s" % [player_name, PlayerState.keys()[current_state], PlayerState.keys()[new_state]])
+        current_state = new_state
+        # TODO: Could add on_enter_state / on_exit_state logic here later
+
 func get_player_name() -> String: return str(player_name) if player_name != "" and player_name != "Player" else str(name)
 func get_is_knocked_down() -> bool: return is_knocked_down
 func reset_state(): print_debug("Reset state for %s" % player_name); is_knocked_down = false; knockdown_timer = 0.0; has_ball = false; can_pass_timer = 0.0; can_kick_timer = 0.0; current_stamina = max_stamina; if collision_shape and collision_shape.disabled: collision_shape.set_deferred("disabled", false); velocity = Vector2.ZERO
+
+func _state_idle(_delta):
+    # print_debug("%s is IDLE" % player_name) # For debugging
+    # For now, an idle player does nothing, movement will be zero based on target=self
+    # Target will be set by determine_target_position based on context
+    pass
+
+func _state_pursuing_ball(_delta):
+    # Logic for when actively going for a loose ball.
+    # Mainly driven by determine_target_position returning ball_node.global_position.
+    # Action decisions (like dive for ball?) could go here later.
+    # print_debug("%s is PURSUING_BALL" % player_name)
+    pass
+
+func _state_supporting_offense(_delta):
+    # Logic for when supporting a teammate who has the ball.
+    # Mainly driven by determine_target_position returning a support spot.
+    # print_debug("%s is SUPPORTING_OFFENSE" % player_name)
+    pass
+
+func _state_has_ball(_delta):
+    # print_debug("%s: HAS_BALL state" % player_name)
+    var attacking_goal_center = TEAM1_GOAL_CENTER if team_id == 0 else TEAM0_GOAL_CENTER
+    var distance_to_goal_sq = global_position.distance_squared_to(attacking_goal_center)
+
+    # PRIORITY 1: If very close to scoring, just try to run
+    if distance_to_goal_sq < SCORE_ATTEMPT_RANGE_SQ:
+        # print_debug("%s is in scoring range (%s), prioritizing run!" % [player_name, str(global_position.round())])
+        # No specific action here, velocity will be set by main movement logic targeting the goal
+        return 
+    
+    # PRIORITY 2: Blocker with the ball has special handling
+    # (This logic block for Blockers should already be here from Turn 129)
+    if player_role == "Blocker":
+        var target_for_handoff = find_nearby_offensive_teammate()
+        if target_for_handoff != null and can_pass_timer <= 0.0:
+            initiate_pass(target_for_handoff)
+            velocity = Vector2.ZERO 
+        elif blocker_hold_ball_timer <= 0.0:
+            # print_debug("Blocker %s held ball too long, desperation kick!" % player_name)
+            var forward_direction = (attacking_goal_center - global_position).normalized()
+            if forward_direction == Vector2.ZERO: forward_direction = Vector2(1,0) if team_id == 0 else Vector2(-1,0)
+            var desperation_target = global_position + forward_direction * 150.0
+            initiate_kick(desperation_target) 
+            velocity = Vector2.ZERO
+        else:
+            velocity = Vector2.ZERO
+        # Blocker state handles its velocity directly, no fall-through to general movement targeting for carrier
+        # move_and_slide() is handled by the main _physics_process loop
+        return # Indicate Blocker has handled its action for this frame (even if it's just stopping)
+
+    # PRIORITY 3: Non-Blocker Actions (Kick/Pass)
+    # These only run if the player has the ball, IS NOT a Blocker, AND is NOT in immediate scoring range.
+    
+    # --- NEW: Check if player should even consider a clearing kick ---
+    var can_consider_clearing_kick = true
+    # Team 0 defends Left (-X), Team 1 defends Right (+X)
+    # Don't clear kick if in opponent's half
+    if team_id == 0: # Attacking Right (+X)
+        if global_position.x > 0: # Player is on opponent's (Right) side of field
+            can_consider_clearing_kick = false
+    elif team_id == 1: # Attacking Left (-X)
+        if global_position.x < 0: # Player is on opponent's (Left) side of field
+            can_consider_clearing_kick = false
+    # --- END NEW CHECK ---
+
+    if can_kick_timer <= 0.0 and is_in_clearing_zone() and can_consider_clearing_kick: # ADDED can_consider_clearing_kick
+        # print_debug("%s is in clearing zone (%s) and can consider kick, attempting." % [player_name, str(global_position.round())])
+        initiate_kick() # Uses default target (opponent goal center)
+        # After initiate_kick, has_ball becomes false.
+        # The player will continue to the main movement logic at the end of _physics_process,
+        # now acting as a non-carrier, and their state will update via lose_ball().
+        return # Action taken for this frame's decision making
+    
+    elif can_pass_timer <= 0.0: # Check for Passing (if didn't kick and pass cooldown ready)
+        if is_under_pressure():
+            var target_teammate = find_open_teammate() # This prioritizes by role
+            if target_teammate != null:
+                # print_debug("%s passing under pressure to OPEN teammate %s!" % [player_name, target_teammate.player_name])
+                initiate_pass(target_teammate)
+                velocity = Vector2.ZERO # Stop moving immediately after initiating pass
+                # No move_and_slide() here, main loop will do it. has_ball will be false.
+                return # Action taken
+    
+    # If no specific action (kick/pass/blocker_action) was taken by the carrier in this state,
+    # they will default to running, handled by the main movement logic using determine_target_position.
+
+func _state_defending(_delta):
+    # Logic for when opponent has the ball.
+    # Mainly driven by determine_target_position returning opponent carrier.
+    # Action decisions (like attempt tackle if close?) could go here.
+    # print_debug("%s is DEFENDING" % player_name)
+    pass
+
+func _state_knocked_down(delta):
+    # Replaces direct call to handle_knockdown from _physics_process
+    knockdown_timer -= delta
+    velocity = velocity.move_toward(Vector2.ZERO, 300 * delta) # Still manage own velocity
+    # move_and_slide() is done in main loop, but this state directly sets velocity
+    
+    if knockdown_timer <= 0.0:
+        is_knocked_down = false
+        print_debug("<<< %s getting up, ENABLING shape: %s" % [player_name, collision_shape.name if collision_shape else "NULL"])
+        if collision_shape and collision_shape.disabled:
+            collision_shape.set_deferred("disabled", false)
+        # --- Transition State ---
+        current_state = PlayerState.PURSUING_BALL # Default state after getting up
+        print_debug("%s transitioned to PURSUING_BALL after knockdown" % player_name)
+
+func _state_blocker_engaging(_delta):
+    # Logic for Blocker moving to engage an opponent when teammate has ball.
+    # Movement driven by determine_target_position (which gets current_block_target_node.global_position).
+    # This state would handle the "stop/slow down/orient" when close to target.
+    if is_instance_valid(current_block_target_node):
+        var dist_to_block_target_sq = global_position.distance_squared_to(current_block_target_node.global_position)
+        var engagement_distance = 30.0 
+        if dist_to_block_target_sq < engagement_distance * engagement_distance:
+            velocity = (current_block_target_node.global_position - global_position).normalized() * (base_speed * 0.1)
+            if velocity.length_squared() > 0: sprite.rotation = velocity.angle()
+        # Else, velocity will be determined by determine_target_position to move towards block target
+    else:
+        # No block target, maybe transition back to general support?
+        current_state = PlayerState.SUPPORTING_OFFENSE
+        # print_debug("%s (Blocker) lost block target, returning to SUPPORTING_OFFENSE" % player_name)
