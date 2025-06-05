@@ -40,6 +40,33 @@ const PLAYER_FALLBACK_Y_SPREAD: float = 100.0
 const BALL_START_POS = Vector2.ZERO
 
 # --- Initialization ---
+
+# Dictionary to store targeted defenders: {defender_node: blocker_node}
+var currently_targeted_defenders = {}
+
+func get_targeted_defenders() -> Dictionary:
+    return currently_targeted_defenders
+
+func set_target_for_blocker(defender: Node, blocker: Node):
+    currently_targeted_defenders[defender] = blocker
+    # print_debug("Field: Blocker ", blocker.name, " targeted ", defender.name)
+
+func remove_target_for_blocker(defender: Node):
+    if currently_targeted_defenders.has(defender):
+        # var blocker = currently_targeted_defenders[defender]
+        currently_targeted_defenders.erase(defender)
+        # print_debug("Field: Blocker ", blocker.name if is_instance_valid(blocker) else "N/A", " UN-targeted ", defender.name)
+    # else:
+        # print_debug("Field: Attempted to remove non-targeted defender ", defender.name)
+
+func is_defender_targeted(defender: Node) -> bool:
+    return currently_targeted_defenders.has(defender)
+
+func get_blocker_for_defender(defender: Node) -> Node:
+    if is_defender_targeted(defender):
+        return currently_targeted_defenders[defender]
+    return null
+
 func _ready():
     # Connect signals from score areas via code
     if Team0_EndZone:
@@ -156,3 +183,6 @@ func reset_play():
             printerr("Player %s missing reset_state method!" % player_node.name)
 
     # print_debug("Field: Player reset complete.") # Reduce noise
+
+    # Ensure currently_targeted_defenders is cleared on reset
+    currently_targeted_defenders.clear()
